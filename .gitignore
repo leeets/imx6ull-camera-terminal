@@ -1,0 +1,39 @@
+# Build artifacts
+*.o
+*.ko
+*.a
+*.so
+*.so.*
+*.elf
+*.out
+*.app
+
+# Compiled binaries
+sources/app/*/build/
+sources/driver/*/build/
+
+# Kernel build
+sources/kernel/linux-*/
+sources/kernel/.config
+sources/kernel/.*.cmd
+sources/kernel/Module.symvers
+
+# Buildroot
+Buildroot/
+
+# IDE / editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Toolchain (user-provided, not committed)
+tools/
+
+# Rootfs overlay artifacts
+rootfs_overlay/etc/init.d/S99local
