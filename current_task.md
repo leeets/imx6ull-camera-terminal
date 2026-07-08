@@ -5,32 +5,34 @@
 
 ---
 
-## Phase 2 — GPIO 按键驱动 & 应用控制（进行中）
+## Phase 2 — GPIO 按键驱动 & 应用控制
 
 ### 已完成
 - gpio_key_drv.c + Makefile 写完
 - button_test.c 写完（短按拍照 / 长按录像 / 双击退出）
+- compatible 字符串已改为 `"gpio-keys"`，与板子 DTS 匹配
 
-### 卡点
-- 驱动 compatible = "gpio_keys"，板子 DTS 里是 "gpio-keys"
-  → 需要统一，建议驱动里改成 "gpio-keys" 与 DTS 一致
+### 状态
+- 驱动代码写完了，compatible 匹配了 ✅
+- 现在在做下一步：测试前把 .ko 放到板子上，或者直接走应用层封装
 
 ### 下一步
-1. 改驱动 compatible 字符串 `"gpio_keys"` → `"gpio-keys"`（匹配 DTS）
-2. 交叉编译驱动 `.ko` 和测试程序
-3. NFS 到板子，`insmod` 验证，跑 `button_test`
-4. 验证短按/长按/双击全部跑通
-5. commit：`gpio_key_drv.c` + `button_test.c` + `Makefile` + `README.md`
-6. ⬅ 提交后回来更新本文件
+1. 打开 `common/hal/hal_key.h` 和 `common/hal/hal_key.c`
+   — 把按键操作封装成 HAL 接口，上层统一读按键而不是直接 open/read /dev 节点
+2. 打开 `modules/key_manager/key_manager.h` 和 `key_manager.c`
+   — 把按键策略（短按拍照、长按录像、双击退出）从测试程序迁移到正式模块
+3. 在 PC 上用 gcc 编译验证逻辑（hack GPIO 返回值的方式 mock 测试）
+4. 上板测试：交叉编译驱动 .ko + app → NFS → insmod → 跑 app
+5. commit：驱动 HAL + Key Manager + 测试结果
 
 ---
 
 ## Phase 3 — V4L2 摄像头采集（排队中）
 
 ### 前置依赖
-- G 确认 CSI 管脚在 DTS 中没有被 ECSPI1 / UART6 占用
-- G 确认内核配置（`make menuconfig`）中 OV5640 / CSI / V4L2 已使能
-- G 重构 DTS，添加 CSI + OV5640 节点
+- 确认 CSI 管脚在 DTS 中没有被 ECSPI1 / UART6 占用
+- 确认内核配置中 OV5640 / CSI / V4L2 已使能
+- 重构 DTS，添加 CSI + OV5640 节点
 
 ### 待做任务
 - [ ] DTS：释放 CSI 管脚，添加 OV5640 子节点
