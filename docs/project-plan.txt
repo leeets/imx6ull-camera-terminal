@@ -258,26 +258,105 @@ Phase 7 — 面试准备 (贯穿始终)
 ─────────────────
 
 imx6ull-camera-terminal/
-├── docs/                    # 文档
-│   └── project-plan.txt     # 本文件
+├── docs/                            # 文档
+│   └── project-plan.txt             # 本文件
 ├── sources/
-│   ├── kernel/              # 内核配置 & 设备树
-│   │   ├── linux-4.9.88/    # 内核源码 (symlink 或拷贝)
-│   │   ├── defconfig        # 板子内核配置
-│   │   └── imx6ull-pro.dts  # 设备树 (改过的)
-│   ├── driver/              # 自己写的驱动
-│   │   └── gpio-keys/       # GPIO 按键驱动
-│   └── app/                 # 应用层
-│       ├── camera_capture/  # V4L2 采集
-│       ├── recorder/        # 录像模块
-│       ├── gps_daemon/      # GPS 解析
-│       ├── mqtt_client/     # MQTT 上传
-│       ├── ui/              # LVGL / Qt UI
-│       └── common/          # IPC、日志、配置
-├── scripts/                 # 编译、烧写、调试脚本
-├── tools/                   # 交叉编译链、测试工具
-├── rootfs_overlay/          # 根文件系统覆盖层 (自启脚本等)
-├── Buildroot/               # Buildroot 源码 (symlink)
+│   ├── kernel/                      # 内核源码 + 设备树（已完成）
+│   │   ├── linux-4.9.88/
+│   │   ├── defconfig
+│   │   └── imx6ull-pro.dts
+│   │
+│   ├── driver/                      # 底层：自己写的驱动
+│   │   ├── gpio-keys/               # GPIO 按键驱动
+│   │   ├── led/                     # 状态指示灯（待扩展）
+│   │   └── buzzer/                  # 蜂鸣器（待扩展）
+│   │
+│   └── app/                         # 应用层
+│       ├── common/                  # 中层：HAL + IPC + Utils
+│       │   ├── hal/                 # 硬件抽象层（统一接口）
+│       │   ├── ipc/                 # 进程间通信封装
+│       │   └── utils/               # 日志、配置、时间工具
+│       │
+│       ├── modules/                 # 上层：业务模块
+│       │   ├── key_manager/         # 按键管理（长短按+双击策略）
+│       │   ├── camera_capture/      # 摄像头采集
+│       │   ├── recorder/            # 录像模块
+│       │   ├── gps_daemon/          # GPS 解析
+│       │   ├── mqtt_client/         # MQTT 上传
+│       │   └── storage_manager/     # 存储管理（循环覆盖）
+│       │
+│       ├── ui/                      # UI 显示（LVGL/Qt）
+│       │
+│       └── main/                    # 主程序入口
+│           └── main.c               # 主循环，协调所有模块
+│
+├── scripts/                         # 编译/烧写/调试脚本
+├── rootfs_overlay/                  # 根文件系统覆盖层
+└── README.md
+完善后的具体的框架：
+imx6ull-camera-terminal/
+├── sources/
+│   ├── kernel/                          # 内核源码 + 设备树（已完成）
+│   │   ├── linux-4.9.88/
+│   │   ├── defconfig
+│   │   └── imx6ull-pro.dts
+│   │
+│   ├── driver/                          # 🔽 底层：自己写的驱动
+│   │   ├── gpio-keys/                   # ✅ 已完成
+│   │   │   ├── gpio_key_drv.c
+│   │   │   ├── Makefile
+│   │   │   └── README.md
+│   │   ├── led/                         # 将来扩展（状态指示灯）
+│   │   └── buzzer/                      # 将来扩展（按键提示音）
+│   │
+│   └── app/                             # 应用层
+│       ├── common/                      # 🔽 中层：HAL + IPC进程间通信 + 工具函数utils
+│       │   ├── hal/                     # 硬件抽象层（统一接口）
+│       │   │   ├── hal_key.h            # 按键HAL接口
+│       │   │   ├── hal_key.c            # 按键HAL实现（调用你的驱动）
+│       │   │   ├── hal_camera.h         # 摄像头HAL接口（将来）
+│       │   │   ├── hal_gps.h            # GPS HAL接口（将来）
+│       │   │   └── hal_4g.h             # 4G HAL接口（将来）
+│       │   ├── ipc/                     # 进程间通信
+│       │   │   ├── message_queue.h      # 消息队列封装
+│       │   │   └── shared_memory.h      # 共享内存封装
+│       │   └── utils/                   # 工具函数
+│       │       ├── logger.h             # 日志系统
+│       │       ├── config.h             # 配置文件读取
+│       │       └── time_utils.h         # 时间工具
+│       │
+│       ├── modules/                     # 🔽 上层：业务模块
+│       │   ├── key_manager/             # 按键管理（长短按+双击策略）
+│       │   │   ├── key_manager.h
+│       │   │   └── key_manager.c
+│       │   ├── camera_capture/          # 摄像头采集
+│       │   │   ├── capture.h
+│       │   │   └── capture.c
+│       │   ├── recorder/                # 录像模块
+│       │   │   ├── recorder.h
+│       │   │   └── recorder.c
+│       │   ├── gps_daemon/              # GPS解析
+│       │   │   ├── gps_daemon.h
+│       │   │   └── gps_daemon.c
+│       │   ├── mqtt_client/             # MQTT上传
+│       │   │   ├── mqtt_client.h
+│       │   │   └── mqtt_client.c
+│       │   └── storage_manager/         # 存储管理（循环覆盖）
+│       │       ├── storage.h
+│       │       └── storage.c
+│       │
+│       ├── ui/                          # UI显示（LVGL/Qt）
+│       │   ├── ui_main.c
+│       │   ├── ui_widgets.c
+│       │   └── ui.h
+│       │
+│       └── main/                        # 主程序入口
+│           ├── main.c                   # 主循环，协调所有模块
+│           ├── main.h
+│           └── CMakeLists.txt           # 或 Makefile
+│
+├── scripts/                             # 编译/烧录脚本
+├── rootfs_overlay/                      # 根文件系统覆盖
 └── README.md
 
 ================================================================================
