@@ -5,25 +5,19 @@
 
 ---
 
-## Phase 2 — GPIO 按键驱动 & 应用控制
+## Phase 2 — GPIO 按键驱动 & 应用控制（基本完成）
 
 ### 已完成
-- gpio_key_drv.c + Makefile 写完
-- button_test.c 写完（短按拍照 / 长按录像 / 双击退出）
-- compatible 字符串已改为 `"gpio-keys"`，与板子 DTS 匹配
+- `driver/gpio-keys/` — GPIO 按键驱动写完
+- `app/common/hal/hal_key.c/h` — 按键硬件抽象层
+- `app/modules/key_manager/key_manager.c/h` — 按键策略（短按拍照、长按停止录像、双击退出）
+- 回调签名已修复统一
 
-### 状态
-- 驱动代码写完了，compatible 匹配了 ✅
-- 现在在做下一步：测试前把 .ko 放到板子上，或者直接走应用层封装
-
-### 下一步
-1. 打开 `common/hal/hal_key.h` 和 `common/hal/hal_key.c`
-   — 把按键操作封装成 HAL 接口，上层统一读按键而不是直接 open/read /dev 节点
-2. 打开 `modules/key_manager/key_manager.h` 和 `key_manager.c`
-   — 把按键策略（短按拍照、长按录像、双击退出）从测试程序迁移到正式模块
-3. 在 PC 上用 gcc 编译验证逻辑（hack GPIO 返回值的方式 mock 测试）
-4. 上板测试：交叉编译驱动 .ko + app → NFS → insmod → 跑 app
-5. commit：驱动 HAL + Key Manager + 测试结果
+### 待做
+1. 上板验证全链路：交叉编译 .ko → NFS → insmod → 跑 app
+2. 验证短按/长按/双击逻辑
+3. 确认 pressed 电平反转正确
+4. 写 `main/main.c` 简单入口集成 key_manager 跑一圈
 
 ---
 
@@ -40,3 +34,13 @@
 - [ ] `camera_capture/capture.c` V4L2 采集框架
 - [ ] `common/hal/hal_camera.h` 硬件抽象
 - [ ] `common/ipc/` 共享内存 + 消息队列封装
+
+---
+
+## 近期 git 历史
+```
+b61d235 docs: 更新 current_task
+f56373d docs: 添加 current_task.md
+04d8e37 feat: 重构项目目录结构为三层架构
+18f1bf2 feat: 初始化项目仓库
+```
