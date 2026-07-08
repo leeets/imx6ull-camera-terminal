@@ -69,7 +69,7 @@ $(APP_TARGET): $(APP_OBJS)
 #==============================================================================
 .PHONY: button_test
 button_test:
-	$(CC) $(CFLAGS) -o $(OUTPUT_DIR)/button_test $(DRV_DIR)/gpio-keys/button_test.c
+	$(CC) $(CFLAGS) -I$(MOD_DIR)/key_manager -o $(OUTPUT_DIR)/button_test $(DRV_DIR)/gpio-keys/button_test.c
 
 #==============================================================================
 # 4. 部署到 NFS 根文件系统
