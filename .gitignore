@@ -51,3 +51,5 @@ sources/driver/gpio-keys/modules.order
 sources/driver/gpio-keys/.tmp_versions/
 sources/driver/gpio-keys/built-in.o
 sources/app/modules/key_manager/button_test.c
+sources/driver/gpio-keys/gpio_key_drv.mod.c
+sources/app/modules/key_manager/button_test.c
