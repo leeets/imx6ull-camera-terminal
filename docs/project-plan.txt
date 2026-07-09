@@ -76,8 +76,8 @@ Linux 综合练兵项目。
 │ 系统           │ Buildroot (现有)        │ 已就绪，不做额外移植          │
 │ 内核           │ Linux 4.9.88 (现有)     │ 韦东山 BSP 标配，足够稳定     │
 │ 设备树(DTS)    │ 基于韦东山 DTS 微调      │ 只改自己需要的节点             │
-│ 摄像头驱动     │ 内核自带 OV5640 + V4L2  │ 现成的，仅需 make menuconfig  │
-│               │ (drivers/media)         │ 使能相关选项                  │
+│ 摄像头驱动     │ UVC (USB Video Class)    │ USB 免驱摄像头，内核自带驱动， │
+│               │ 内核自带                 │ 即插即用，无需额外配置        │
 │ 显示方案       │ Framebuffer (fbdev)     │ i.MX6ULL 无 GPU，DRM 支持    │
 │               │ 或 Qt Platform Abstraction│ 有限。先用 fbdev 稳定        │
 │ GUI 框架      │ Qt (现有) 或 LVGL       │ Qt 已预装，资源够用；         │
@@ -107,9 +107,8 @@ Linux 综合练兵项目。
 ┌─────────────────────────────────────────────────────────────────────┐
 │ 模块            │ 策略           │ 理由                             │
 ├──────────────────┼────────────────┼─────────────────────────────────┤
-│ OV5640 驱动      │ 用内核现成的   │ 内核已有完整驱动 (ov5640.c)       │
-│ CSI 控制器       │ 用内核现成的   │ 芯片厂商已支持                    │
-│ V4L2 框架        │ 理解并使用 API │ 只需要写应用层 ioctl 调用         │
+│ UVC 驱动         │ 用内核现成的   │ 内核已有完整驱动 (uvcvideo)       │
+│ V4L2 框架        │ 理解并使用 API │ UVC + V4L2，应用层 ioctl 完全兼容  │
 │ GPIO 按键驱动    │ 自己写！       │ 简单字符设备，面试必问             │
 │ Camera 采集应用  │ 自己写！       │ 核心应用逻辑，体现编码能力          │
 │ MJPEG 录像       │ 自己写！       │ 流式存储设计，体现工程思维          │
@@ -190,11 +189,11 @@ Phase 2 — 按键驱动 (自己写!) + 应用层控制 (1 周)
   □ 编写测试 app, 通过 input_event 读取按键
   □ 实现: 短按拍照、长按录像、双击退出
 
-Phase 3 — 摄像头采集 (自己写应用!) (2~3 周)
+Phase 3 — 摄像头采集 (UVC + V4L2) (1~2 周)
+  □ UVC 摄像头插入确认: lsusb, dmesg, ls /dev/video*
   □ V4L2 应用: 打开设备、设置格式、请求缓冲区、mmap、DQBUF
   □ 实现单帧捕获 → 存 JPEG 文件
   □ 实现连续采集 → 实时预览 (Framebuffer / Qt Widget)
-  □ V4L2 + MJPEG 流式读取
   □ 帧率测试与优化
 
 Phase 4 — 录像与存储 (自己写!) (1~2 周)
@@ -244,7 +243,7 @@ Phase 7 — 面试准备 (贯穿始终)
      但如果卡顿，MJPEG 录像（只打包 JPEG 帧）是稳妥方案。
   2. 预览方案 → Qt 自带 Framebuffer 后端 (-qt-fb) 可以直接用，
      不需要折腾 DRM。先跑通，学有余力再研究 DRM/KMS。
-  3. OV5640 → 先试 MJPEG 格式（带宽低），不行再降分辨率到 VGA。
+  3. USB 摄像头 → 大多数支持 MJPEG 和 YUYV，优先 MJPEG 格式以降低 USB 带宽。
   4. GPS 模块 → 先用 USB 转串口在 PC 上验证 NMEA 数据格式，
      再连到板子 UART。
   5. 4G 模块 → 先内网测试 (以太网 + 本地 Mosquitto)，
@@ -318,8 +317,8 @@ imx6ull-camera-terminal/
 │       │   │   ├── hal_gps.h            # GPS HAL接口（将来）
 │       │   │   └── hal_4g.h             # 4G HAL接口（将来）
 │       │   ├── ipc/                     # 进程间通信
-│       │   │   ├── message_queue.h      # 消息队列封装
-│       │   │   └── shared_memory.h      # 共享内存封装
+│       │   │   ├── message_queue.h/c      # 消息队列封装
+│       │   │   └── shared_memory.h/c     # 共享内存封装
 │       │   └── utils/                   # 工具函数
 │       │       ├── logger.h             # 日志系统
 │       │       ├── config.h             # 配置文件读取

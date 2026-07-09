@@ -37,3 +37,17 @@ tools/
 
 # Rootfs overlay artifacts
 rootfs_overlay/etc/init.d/S99local
+
+# Windows Zone Identifier (NTFS alternate data stream artifacts)
+*:Zone.Identifier
+
+# Kernel module build artifacts
+sources/driver/gpio-keys/*.o
+sources/driver/gpio-keys/*.ko
+sources/driver/gpio-keys/*.mod.*
+sources/driver/gpio-keys/.*.cmd
+sources/driver/gpio-keys/Module.symvers
+sources/driver/gpio-keys/modules.order
+sources/driver/gpio-keys/.tmp_versions/
+sources/driver/gpio-keys/built-in.o
+sources/app/modules/key_manager/button_test.c

@@ -13,8 +13,8 @@ LD          := $(CROSS_COMPILE)ld
 ARCH        := arm
 
 # ---- 源码目录 ----
-DRV_DIR     := sources/driver
-APP_DIR     := sources/app
+DRV_DIR     := driver
+APP_DIR     := app
 HAL_DIR     := $(APP_DIR)/common/hal
 MOD_DIR     := $(APP_DIR)/modules
 MAIN_DIR    := $(APP_DIR)/main
@@ -25,12 +25,10 @@ BUILD_DIR   := build
 OUTPUT_DIR  := $(BUILD_DIR)/target
 
 # ---- 应用源码 ----
-APP_SRCS    := $(wildcard $(HAL_DIR)/*.c) \
-               $(wildcard $(MOD_DIR)/key_manager/*.c) \
-               $(wildcard $(MAIN_DIR)/*.c)
-APP_OBJS    := $(patsubst %.c,$(BUILD_DIR)/%.o,$(APP_SRCS))
-APP_TARGET  := $(OUTPUT_DIR)/camera_terminal
-
+HAL_SRCS    := $(wildcard $(HAL_DIR)/*.c)
+MOD_SRCS    := $(wildcard $(MOD_DIR)/*.c)
+MAIN_SRCS   := $(wildcard $(MAIN_DIR)/*.c)
+APP_SRCS    := $(HAL_SRCS) $(MOD_SRCS) $(MAIN_SRCS)
 # ---- 编译器标志 ----
 CFLAGS      := -Wall -I$(HAL_DIR) -I$(MOD_DIR)/key_manager -I$(APP_DIR)/common/ipc -I$(APP_DIR)/common/utils
 LDFLAGS     := -lpthread -lrt
@@ -69,18 +67,13 @@ $(APP_TARGET): $(APP_OBJS)
 #==============================================================================
 .PHONY: button_test
 button_test:
-	$(CC) $(CFLAGS) -I$(MOD_DIR)/key_manager -o $(OUTPUT_DIR)/button_test $(DRV_DIR)/gpio-keys/button_test.c
-
-#==============================================================================
-# 4. 部署到 NFS 根文件系统
-#==============================================================================
-NFS_DIR ?= /srv/nfs/rootfs
-.PHONY: deploy
-deploy: all
-	@echo "=== 部署到 $(NFS_DIR) ==="
-	cp $(DRV_DIR)/gpio-keys/*.ko $(NFS_DIR)/root/
-	cp $(APP_TARGET) $(NFS_DIR)/root/
-	@echo "部署完成"
+	@mkdir -p $(OUTPUT_DIR)
+	$(CC) $(CFLAGS) -I$(HAL_DIR) -I$(MOD_DIR) \
+		-o $(OUTPUT_DIR)/button_test \
+		$(HAL_DIR)/hal_key.c \
+		$(MOD_DIR)/key_manager/key_manager.c \
+		$(MOD_DIR)/key_manager/button_test.c
+	@echo "=== 测试程序编译完成: $(OUTPUT_DIR)/button_test ==="
 
 #==============================================================================
 # 5. 清理

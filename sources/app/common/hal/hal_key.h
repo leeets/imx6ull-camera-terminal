@@ -1,5 +1,7 @@
 #ifndef _HAL_KEY_H
 #define _HAL_KEY_H
+#include <sys/time.h> 
+
 
 /*==================== 按键事件结构体 ====================*/
 typedef struct {
