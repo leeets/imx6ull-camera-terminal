@@ -18,7 +18,7 @@ typedef void (*key_callback_t)(key_event_type_t event);
 
 /* 接口 */
 int key_manager_init(void);
-void key_manager_register_callback(key_callback_t cb);
+void key_manager_register_callback(key_callback_t cb); 
 void key_manager_task(void);  // 主循环调用（子线程读阻塞）
 void key_manager_exit(void);
 
