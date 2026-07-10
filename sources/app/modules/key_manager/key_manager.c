@@ -34,12 +34,12 @@ static long time_diff_ms(struct timeval *t1, struct timeval *t2) {
 int key_manager_init(void) {
     return hal_key_init();
 }
-/*回调cb这个函数*/
+/* g_callback指向cb这个函数 */
 void key_manager_register_callback(key_callback_t cb) {
     g_callback = cb;
 }
 
-/*主任务*/
+/* 主任务 */
 void key_manager_task(void) {
     hal_key_event_t ev;//hal事件（本次事件的按键号、pressed）
     struct timeval now;//本事件时间

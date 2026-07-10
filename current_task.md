@@ -5,56 +5,69 @@
 
 ---
 
-## 当前项目状态
+## 项目总览
 
-### Phase 2 — 按键模块 ✅ 完成
-- `driver/gpio-keys/` — GPIO 按键驱动（insmod 验证通过）
+### ✅ 已完成
+
+**Phase 2 — 按键模块**
+- `driver/gpio-keys/gpio_key_drv.c` — GPIO 按键驱动
 - `common/hal/hal_key.c/h` — 按键硬件抽象层
-- `modules/key_manager/key_manager.c/h` — 按键策略（短按/长按/双击）
-- 全链路上板测试通过 ✅
+- `modules/key_manager/key_manager.c/h` — 按键策略（短按拍照 / 长按录像停 / 双击退出）
+- 全链路上板验证通过
 
-### Phase 3 — 摄像头采集 ✅ 代码完成
+**Phase 3 — 摄像头采集（UVC）**
+- 方案从 CSI OV5640 切换为 USB 免驱摄像头（UVC）
+- `common/hal/hal_camera.c/h` — V4L2 纯 HAL 层
+- `modules/camera_capture/capture.c/h` — 业务层（初始化降级/预览/拍照）
+- `main/main.c` — 主入口（整合 key + capture）
+- 交叉编译验证通过
 
-#### 变更记录
-- CSI 接口 OV5640 方案 → USB 免驱摄像头（UVC）
-- 原因：OV5640 依赖 CSI 管脚、I2C GPIO 控制，硬件验证复杂且板子上 probe 报错 -22
-- UVC 方案优势：即插即用、内核自带驱动、V4L2 接口完全一致
+### 当前目录结构
 
-#### DTS
-- ECSPI1 → disabled（释放 CSI 管脚）
-- CSI pinmux → CSI 功能（已配好，保留不动）
-- OV5640 节点 → 已添加 rst/pwdn/mclk/csi_id 属性（弃用，保留为 CSI 方案备选）
-- UVC 摄像头不需要任何 DTS 修改
+```
+imx6ull-camera-terminal/
+├── docs/project-plan.txt
+├── sources/
+│   ├── kernel/                  # linux-4.9.88 + DTS
+│   ├── driver/
+│   │   ├── gpio-keys/           # ✅ 
+│   │   └── led/                 # 空
+│   └── app/
+│       ├── common/hal/
+│       │   ├── hal_key.c/h      # ✅
+│       │   └── hal_camera.c/h   # ✅
+│       ├── modules/
+│       │   ├── key_manager/     # ✅
+│       │   ├── camera_capture/  # ✅
+│       │   └── ...              # 待写
+│       ├── ui/                  # 待写
+│       └── main/main.c          # ✅
+├── scripts/
+└── rootfs_overlay/
+```
 
-#### 应用层
-- `common/hal/hal_camera.h` — V4L2 HAL 接口（与 OV5640/UVC 通用）
-- `modules/camera_capture/capture.c/h` — Capture 业务模块（与 OV5640 时代完全兼容，V4L2 接口没变）
-- `main/main.c` — 主入口
-- 交叉编译验证通过 ✅
+### 下一步（按优先级）
 
-### 下一步
+1. **Framebuffer 实时预览** — `common/hal/hal_fb.c/h` + `modules/fb_display/`
+   - 打开 /dev/fb0，mmap 显存
+   - 将 V4L2 采集帧（MJPEG 解码或 YUYV 转换）写入 framebuffer
 
-1. **上板验证 UVC 摄像头**
-   - 插入 USB 摄像头 → `lsusb`、`dmesg` 确认 uvcvideo 加载
-   - `ls /dev/video*` 确认设备节点
-   - `v4l2-ctl -d /dev/video0 --list-formats` 确认格式，优先 MJPEG
+2. **LVGL 仪表盘 UI** — `app/ui/`
+   - 实时相机入口
+   - 相册入口
+   - GPS 状态信息
+   - 录像状态显示
 
-2. **Phase 4 — 录像 & 存储**
-   - `recorder/recorder.c` — MJPEG 逐帧打包 AVI
-   - `storage_manager/storage.c` — 循环覆盖
-   - `common/ipc/` — 共享内存 + 消息队列
-
-3. **Phase 5 — GPS + 4G + MQTT**
-   - `gps_daemon/` — minmea NMEA 解析
-   - `mqtt_client/` — MQTT 上报
-   - 4G 拨号脚本
+3. **录像模块** — `modules/recorder/`
+4. **GPS + 4G + MQTT**
 
 ---
 
 ## 近期 git 历史
 ```
-97d171f docs: 更新 current_task — Phase3 代码完成
+021d7ec chore: gitignore 排除编译产物
+dbc278e refactor: 分离 HAL 层与 capture 业务层
+7a11997 feat: 切换摄像头方案为 USB UVC
+97d171f docs: 更新 current_task
 31b1c57 feat: 摄像头 HAL + Capture 模块 + main 入口
-1345c1e docs: 反映实际目录状态，Phase2 确认完成
-4db5668 docs: Phase2 完成，进入 Phase3
 ```

@@ -14,6 +14,7 @@ typedef enum {
 } key_event_type_t;
 
 /* 回调函数类型：业务层注册，按键发生时调用（传入按键号、事件枚举） */
+/* 回调机制的核心作用就是解耦和异步通知!! */
 typedef void (*key_callback_t)(key_event_type_t event);
 
 /* 接口 */
