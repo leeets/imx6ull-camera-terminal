@@ -50,8 +50,8 @@ Linux 综合练兵项目。
 ├───────┼────────────────────┼──────────────────────────────────────┤
 │ F01   │ 摄像头采集          │ CSI 接口 OV5640，V4L2 捕获 MJPEG      │
 │ F02   │ 实时预览            │ 在 LCD 上显示摄像头画面                │
-│ F03   │ 拍照 & 存储         │ 捕获 JPEG，存到 SD 卡 / eMMC          │
-│ F04   │ 录像 & 循环覆盖     │ MJPEG 或 H.264 分段存储，满时删旧     │
+│ F03   │ 拍照 & 存储         │ 捕获 JPEG，由 storage_manager 存到 SD 卡  │
+│ F04   │ 录像 & 循环覆盖     │ MJPEG 逐帧打包，由 storage_manager 管理存储 │
 │ F05   │ GPS 定位            │ UART 读取 NMEA，解析经纬度/时间/速度   │
 │ F06   │ 4G 网络接入         │ ECM/PPP 拨号，实现 TCP/MQTT 上报       │
 │ F07   │ 数据上云            │ 定时上传 GPS + 状态到 MQTT Broker     │
@@ -110,8 +110,10 @@ Linux 综合练兵项目。
 │ UVC 驱动         │ 用内核现成的   │ 内核已有完整驱动 (uvcvideo)       │
 │ V4L2 框架        │ 理解并使用 API │ UVC + V4L2，应用层 ioctl 完全兼容  │
 │ GPIO 按键驱动    │ 自己写！       │ 简单字符设备，面试必问             │
-│ Camera 采集应用  │ 自己写！       │ 核心应用逻辑，体现编码能力          │
-│ MJPEG 录像       │ 自己写！       │ 流式存储设计，体现工程思维          │
+│ Camera 采集应用  │ 自己写！       │ hal_camera + capture 两层架构        │
+│ 拍照存储         │ storage_manager │ 统一文件存储接口，接管拍照存盘       │
+│ 录像             │ recorder        │ 调用 hal_camera 帧回调，逐帧打包 MJPEG │
+│ 存储管理         │ storage_manager │ 文件写 + 循环覆盖 + 目录管理         │
 │ GPS 解析         │ 用 minmea 库   │ 没必要重写 NMEA 解析器             │
 │ 4G 拨号          │ 脚本集成       │ pppd/ecm 已有                     │
 │ MQTT 上传        │ 用 paho 库     │ 标准库，学会使用即可               │
@@ -165,54 +167,62 @@ IPC 设计:
   • POSIX 消息队列 — 控制命令 (拍照/录像/停止/退出)
   • 共享内存 — 视频帧数据 (Capture Thread → Recorder)
   • 信号量/Socket — GPS 坐标从 Daemon → App
+  • storage_manager — 统一管理拍照存盘 + 录像循环覆盖
 
 ================================================================================
 
 七、学习路线与里程碑 (Roadmap)
 ─────────────────────────────────
 
-Phase 0 — 环境摸底 (3 天)
-  □ 确认板子当前系统状态: cat /proc/cpuinfo, uname -a, lsmod
-  □ 确认摄像头设备: ls /dev/video*, v4l2-ctl --list-devices
-  □ 确认 LCD Framebuffer: cat /sys/class/graphics/fb0/*
-  □ 测试交叉编译: 写一个 hello.c，编译后 NFS 挂载运行
-  □ Git 初始化项目仓库
+Phase 0 — 环境摸底 ✅ (已完成)
+  □ 板子系统确认 (cpuinfo, uname)
+  □ 交叉编译测试 (hello.c → NFS 运行)
+  □ Git 仓库初始化
 
-Phase 1 — 内核配置与设备树 (1 周)
-  □ 获取板子当前内核源码和 .config
-  □ make menuconfig 使能 V4L2、OV5640、GPIO 输入、UART
-  □ 修改设备树: 添加 GPIO 按键节点、确认 CSI/UART 节点正确
-  □ 编译内核并烧录测试
+Phase 1 — 内核配置与设备树 ✅ (已完成)
+  □ 获取内核源码 + .config
+  □ U-Boot、kernel DTS 确认
+  □ menuconfig 使能 V4L2、UVC、GPIO 输入
+  □ CSI OV5640 方案 → 切换为 USB UVC 方案
 
-Phase 2 — 按键驱动 (自己写!) + 应用层控制 (1 周)
-  □ 编写 GPIO Input 子系统驱动 (misc device)
-  □ 编写测试 app, 通过 input_event 读取按键
-  □ 实现: 短按拍照、长按录像、双击退出
+Phase 2 — 按键模块 ✅ (已完成)
+  □ GPIO 按键驱动 (gpio_key_drv.c) — 自己写
+  □ HAL 抽象层 (hal_key.c/h)
+  □ 按键策略 (key_manager.c/h): 短按拍照 / 长按录像停 / 双击退出
+  □ 上板验证通过
 
-Phase 3 — 摄像头采集 (UVC + V4L2) (1~2 周)
-  □ UVC 摄像头插入确认: lsusb, dmesg, ls /dev/video*
-  □ V4L2 应用: 打开设备、设置格式、请求缓冲区、mmap、DQBUF
-  □ 实现单帧捕获 → 存 JPEG 文件
-  □ 实现连续采集 → 实时预览 (Framebuffer / Qt Widget)
-  □ 帧率测试与优化
+Phase 3 — 摄像头采集 ✅ (代码完成，待上板验证)
+  □ hal_camera.c/h — V4L2 纯 HAL 层
+  □ capture.c/h — 业务层（初始化降级/预览启动/拍照单帧）
+  □ hal_fb.c/h — Framebuffer HAL（待写）
+  □ fb_display/ — 实时预览写入 /dev/fb0（待写）
+  □ 上板验证: lsusb → /dev/videoX → 拍照→存JPEG → 帧率
 
-Phase 4 — 录像与存储 (自己写!) (1~2 周)
-  □ MJPEG 逐帧写入文件，封装成 AVI
-  □ 循环录像: 检测磁盘用量，自动删除最旧文件
+Phase 4 — 存储管理 + 录像
+  □ storage_manager/ — 统一管理拍照存盘 + 录像文件循环覆盖
+      ├── 拍照: capture_take_photo 触发 → storage_save_photo() 写入 SD 卡
+      └── 录像: recorder 逐帧写入 → storage 管理分段 + 满删旧
+  □ recorder/ — MJPEG 逐帧打包 AVI 文件
   □ 按键控制录像启停
 
-Phase 5 — GPS + 4G + MQTT (1~2 周)
-  □ GPS 模块连接 & UART 测试: cat /dev/ttyX
-  □ 集成 minmea 解析 NMEA → 得到经纬度/速度
-  □ 4G 拨号 (ECM/PPP) → ifconfig 看到 usb0/ppp0
-  □ MQTT 客户端: 连接 Broker，上报 GPS + 缩略图
-  □ 内网用 Mosquitto 测试通过后，迁移到公网 Broker
+Phase 5 — Framebuffer 实时预览 + LVGL UI
+  □ hal_fb.c/h — 打开 /dev/fb0，mmap 显存，写像素
+  □ fb_display/ — 将 V4L2 帧（MJPEG 解码/YUYV 转换）写入 fb
+  □ LVGL 仪表盘 (ui/):
+      ├── 实时相机入口 (page_camera)
+      ├── 相册入口 (page_album)
+      ├── GPS 状态信息 (page_gps)
+      └── 录像状态 (page_recorder)
 
-Phase 6 — UI 整合 (1~2 周)
-  □ 选择方案: Qt (现有) 或 LVGL (移植)
-  □ UI 布局: GPS 信息、网络状态、录像状态、按键提示
-  □ 所有功能联调，按键 → 采集 → 存储 → 上传 全链路打通
-  □ 开机自启: Systemd service 或 inittab
+Phase 6 — GPS + 4G + MQTT
+  □ gps_daemon/ — minmea 解析 NMEA
+  □ mqtt_client/ — MQTT 上报 GPS + 缩略图
+  □ 4G 拨号脚本 (ECM/PPP)
+
+Phase 7 — 整合与面试准备 (贯穿始终)
+  □ 全链路联调: 按键 → 采集 → 存储 → 上传
+  □ 开机自启 (Systemd / inittab)
+  □ 面试题库整理: platform bus、设备树、V4L2、中断下半部
 
 Phase 7 — 面试准备 (贯穿始终)
   □ 整理项目用到的内核机制: platform bus、设备树、input subsystem、
@@ -307,7 +317,7 @@ imx6ull-camera-terminal/
 │       │   └── assets/           # 图标、字体等资源
 │       │
 │       └── main/                 # 主程序入口
-│           └── main.c            # ✅ 已实现（整合 key + capture）
+│           └── main.c            # ✅ 已部分实现（整合 key + capture）
 │
 ├── scripts/                      # 编译/烧写/调试脚本
 ├── rootfs_overlay/               # 根文件系统覆盖层
