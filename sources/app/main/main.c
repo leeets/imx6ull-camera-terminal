@@ -8,6 +8,7 @@
 
 static volatile int g_running = 1;
 
+/* 按键注册需要的函数，根据事件进行操作 */
 void on_key_event(key_event_type_t event) {
     switch (event) {
     case KEY_EVENT_CAPTURE:
@@ -28,9 +29,9 @@ void on_key_event(key_event_type_t event) {
         break;
     }
 }
-
+/*目前只初始化，还没摄像头业务*/
 int main(int argc, char **argv) {
-    const char *cam_dev = "/dev/video0";
+    const char *cam_dev = "/dev/video1";//设备名称
 
     if (argc > 1) cam_dev = argv[1];
 
@@ -44,7 +45,7 @@ int main(int argc, char **argv) {
         fprintf(stderr, "按键初始化失败\n");
         return -1;
     }
-    key_manager_register_callback(on_key_event);
+    key_manager_register_callback(on_key_event);//调on_key_event
 
     printf("车载终端启动\n");
     printf("  [拍照键] 短按 → 拍照\n");

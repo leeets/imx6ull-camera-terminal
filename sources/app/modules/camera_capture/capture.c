@@ -22,17 +22,13 @@ int capture_init(const char *dev_path, int width, int height) {
 
     params.width       = width;
     params.height      = height;
-    params.pixelformat = V4L2_PIX_FMT_MJPEG;
+    params.pixelformat = V4L2_PIX_FMT_YUYV;
     params.fps         = 15;
 
-    printf("[CAPTURE] init %s %dx%d MJPEG\n", dev_path, width, height);
+    printf("[CAPTURE] init %s %dx%d YUYV\n", dev_path, width, height);
     if (hal_camera_init(dev_path, &params) < 0) {
-        printf("[CAPTURE] MJPEG failed, fallback YUYV\n");
-        params.pixelformat = V4L2_PIX_FMT_YUYV;
-        if (hal_camera_init(dev_path, &params) < 0) {
-            fprintf(stderr, "[CAPTURE] init ALL failed\n");
-            return -1;
-        }
+        fprintf(stderr, "[CAPTURE] init failed\n");
+        return -1;
     }
     return 0;
 }

@@ -1,73 +1,72 @@
 # current_task — 当前任务
 
-> 本文件记录当前项目状态和下一步计划。
-> 随项目进展更新。
+---
+
+## ✅ 已完成
+
+**Phase 2 — 按键模块**
+- driver/gpio-keys/, hal_key.c/h, key_manager.c/h → 全链路验证通过
+
+**Phase 3 — 摄像头采集**
+- hal_camera.c/h — V4L2 纯 HAL（init/start/capture_one/stop/exit）
+- capture.c/h — 业务层（YUYV 强制模式，init/start_preview/take_photo）
+- main/main.c — 主入口
+
+**Phase 4 — Framebuffer 显示（代码完成）**
+- hal_fb.c/h — 轻量 fb HAL（init/draw_rgb565/clear/exit）
+- video_convert.c/h — YUYV→RGB565 转换（纯整数算法，0 外部依赖）
+- 删除了旧的韦东山 DispOpr 框架（framebuffer.c / disp_manager.*）
+- 默认像素格式从 MJPEG 改为 YUYV
+- 交叉编译验证通过
 
 ---
 
-## 项目总览
-
-### ✅ 已完成
-
-**Phase 2 — 按键模块**
-- `driver/gpio-keys/gpio_key_drv.c` — GPIO 按键驱动
-- `common/hal/hal_key.c/h` — 按键硬件抽象层
-- `modules/key_manager/key_manager.c/h` — 按键策略（短按拍照 / 长按录像停 / 双击退出）
-- 全链路上板验证通过
-
-**Phase 3 — 摄像头采集（UVC）**
-- 方案从 CSI OV5640 切换为 USB 免驱摄像头（UVC）
-- `common/hal/hal_camera.c/h` — V4L2 纯 HAL 层
-- `modules/camera_capture/capture.c/h` — 业务层（初始化降级/预览/拍照）
-- `main/main.c` — 主入口（整合 key + capture）
-- 交叉编译验证通过
-
-### 当前目录结构
+## 当前目录结构
 
 ```
-imx6ull-camera-terminal/
-├── docs/project-plan.txt
-├── sources/
-│   ├── kernel/                  # linux-4.9.88 + DTS
-│   ├── driver/
-│   │   ├── gpio-keys/           # ✅ 
-│   │   └── led/                 # 空
-│   └── app/
-│       ├── common/hal/
-│       │   ├── hal_key.c/h      # ✅
-│       │   └── hal_camera.c/h   # ✅
-│       ├── modules/
-│       │   ├── key_manager/     # ✅
-│       │   ├── camera_capture/  # ✅
-│       │   └── ...              # 待写
-│       ├── ui/                  # 待写
-│       └── main/main.c          # ✅
-├── scripts/
-└── rootfs_overlay/
+sources/
+├── common/hal/
+│   ├── hal_key.c/h        # 按键 HAL
+│   ├── hal_camera.c/h     # 摄像头 V4L2 HAL
+│   └── hal_fb.c/h         # Framebuffer HAL
+├── modules/
+│   ├── key_manager/       # 按键策略
+│   ├── camera_capture/    # 摄像头业务层
+│   ├── fb_display/
+│   │   └── video_convert.c/h  # YUYV→RGB565 转换
+│   ├── recorder/          # （待写）
+│   ├── gps_daemon/        # （待写）
+│   ├── mqtt_client/       # （待写）
+│   └── storage_manager/   # （待写）
+├── ui/                    # LVGL（待写）
+├── driver/gpio-keys/      # GPIO 按键驱动
+└── main/main.c
 ```
 
-### 下一步（按优先级）
+## 数据流（YUYV 模式）
 
-1. **Framebuffer 实时预览** — `common/hal/hal_fb.c/h` + `modules/fb_display/`
-   - 打开 /dev/fb0，mmap 显存
-   - 将 V4L2 采集帧（MJPEG 解码或 YUYV 转换）写入 framebuffer
+```
+USB 摄像头 (YUYV)
+  → hal_camera_start() 帧回调
+  → capture.c: preview_bridge
+  → fb_display: yuyv_to_rgb565()
+  → hal_fb_draw_rgb565()
+  → /dev/fb0 显示
+```
 
-2. **LVGL 仪表盘 UI** — `app/ui/`
-   - 实时相机入口
-   - 相册入口
-   - GPS 状态信息
-   - 录像状态显示
+---
 
-3. **录像模块** — `modules/recorder/`
-4. **GPS + 4G + MQTT**
+## 下一步
+
+1. **上板验证全链路** — 插入 USB 摄像头，运行 camera_terminal
+2. **recorder/ — MJPEG 逐帧打包 AVI**
+3. **storage_manager/ — 统一管理拍照+录像存储**
+4. **LVGL UI — 仪表盘页面**
+5. **GPS + 4G + MQTT**
 
 ---
 
 ## 近期 git 历史
 ```
-021d7ec chore: gitignore 排除编译产物
-dbc278e refactor: 分离 HAL 层与 capture 业务层
-7a11997 feat: 切换摄像头方案为 USB UVC
-97d171f docs: 更新 current_task
-31b1c57 feat: 摄像头 HAL + Capture 模块 + main 入口
+(当前未提交)
 ```

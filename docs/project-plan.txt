@@ -251,9 +251,10 @@ Phase 7 — 面试准备 (贯穿始终)
 ───────────────────────
   1. H.264 编码 → i.MX6ULL 无硬件编码器，x264 软编在 VGA 下可以跑，
      但如果卡顿，MJPEG 录像（只打包 JPEG 帧）是稳妥方案。
-  2. 预览方案 → Qt 自带 Framebuffer 后端 (-qt-fb) 可以直接用，
-     不需要折腾 DRM。先跑通，学有余力再研究 DRM/KMS。
-  3. USB 摄像头 → 大多数支持 MJPEG 和 YUYV，优先 MJPEG 格式以降低 USB 带宽。
+  2. Framebuffer 预览 → hal_fb.c 轻量封装 /dev/fb0，直接 mmap 写显存。
+     YUYV 转 RGB565 由 video_convert.c 完成，纯软件 0 依赖，VGA@15fps 可行。
+  3. USB 摄像头 → 默认 YUYV 格式，避免 MJPEG 软件解码开销。
+     如需拍照存 JPEG，用 libjpeg-turbo 在 storage_manager 中编码。
   4. GPS 模块 → 先用 USB 转串口在 PC 上验证 NMEA 数据格式，
      再连到板子 UART。
   5. 4G 模块 → 先内网测试 (以太网 + 本地 Mosquitto)，
