@@ -202,14 +202,20 @@ Phase 4 — Framebuffer 显示 ✅ (代码完成)
   □ hal_fb.c/h — 轻量 fb HAL
   □ video_convert.c/h — YUYV→RGB565
 
-Phase 5 — 存储管理 + 录像
+Phase 5 — Recorder 录像模块 ✅ (代码完成)
+  □ recorder/ — MJPEG 逐帧打包 AVI 文件
+      ├── RIFF('AVI ') → LIST('hdrl') → LIST('movi') → idx1 完整 AVI 结构
+      ├── 帧级别写入: write_chunk('00dc') + padding
+      └── 录完回写: avih.total_frames, strh.length, RIFF size, idx1 索引表
+  □ 待集成到 main.c（按键触发 recorder_start/stop）
+
+Phase 6 — 存储管理
   □ storage_manager/ — 统一管理拍照存盘 + 录像文件循环覆盖
       ├── 拍照: capture_take_photo 触发 → storage_save_photo() 写入 SD 卡
       └── 录像: recorder 逐帧写入 → storage 管理分段 + 满删旧
-  □ recorder/ — MJPEG 逐帧打包 AVI 文件
   □ 按键控制录像启停
 
-Phase 6 — LVGL 仪表盘 UI
+Phase 7 — LVGL 仪表盘 UI
   □ hal_fb.c/h — 打开 /dev/fb0，mmap 显存，写像素
   □ fb_display/ — 将 V4L2 帧（MJPEG 解码/YUYV 转换）写入 fb
   □ LVGL 仪表盘 (ui/):
@@ -218,17 +224,17 @@ Phase 6 — LVGL 仪表盘 UI
       ├── GPS 状态信息 (page_gps)
       └── 录像状态 (page_recorder)
 
-Phase 7 — GPS + 4G + MQTT
+Phase 8 — GPS + 4G + MQTT
   □ gps_daemon/ — minmea 解析 NMEA
   □ mqtt_client/ — MQTT 上报 GPS + 缩略图
   □ 4G 拨号脚本 (ECM/PPP)
 
-Phase 8 — 整合与面试准备 (贯穿始终)
+Phase 9 — 整合与面试准备 (贯穿始终)
   □ 全链路联调: 按键 → 采集 → 存储 → 上传
   □ 开机自启 (Systemd / inittab)
   □ 面试题库整理: platform bus、设备树、V4L2、中断下半部
 
-Phase 7 — 面试准备 (贯穿始终)
+Phase 10 — 面试准备 (贯穿始终)
   □ 整理项目用到的内核机制: platform bus、设备树、input subsystem、
     V4L2 ioctl、mmap、中断下半部
   □ 准备简历项目描述 (1 段 + 3 个要点)
@@ -307,7 +313,7 @@ imx6ull-camera-terminal/
 │       │   ├── key_manager/      # ✅ 按键策略（已完成）
 │       │   ├── camera_capture/   # ✅ 摄像头采集（已完成）
 │       │   ├── fb_display/       # ✅ YUYV→RGB565 转换（已完成）
-│       │   ├── recorder/         # 录像模块（待写）
+│       │   ├── recorder/         # ✅ AVI MJPEG 录像模块（已完成）
 │       │   ├── gps_daemon/       # GPS 解析（待写）
 │       │   ├── mqtt_client/      # MQTT 上传（待写）
 │       │   └── storage_manager/  # 存储管理（待写）

@@ -19,6 +19,14 @@
 - 默认像素格式从 MJPEG 改为 YUYV
 - 交叉编译验证通过
 
+**Phase 5 — Recorder 录像模块（代码完成）**
+- recorder.c/h — AVI MJPEG 逐帧打包
+  - RIFF('AVI ') → LIST('hdrl') → LIST('movi') → idx1 完整 AVI 结构
+  - 帧级别写入: write_chunk('00dc') + padding
+  - 录完回写: avih.total_frames, strh.length, RIFF size, idx1 索引表
+  - 无外部依赖，纯 V4L2 帧缓存逐帧存盘
+- 待集成到 main.c（按键触发 recorder_start/stop）
+
 ---
 
 ## 当前目录结构
@@ -34,7 +42,7 @@ sources/
 │   ├── camera_capture/    # 摄像头业务层
 │   ├── fb_display/
 │   │   └── video_convert.c/h  # YUYV→RGB565 转换
-│   ├── recorder/          # （待写）
+│   ├── recorder/          # ✅ AVI MJPEG 录像模块（已完成）
 │   ├── gps_daemon/        # （待写）
 │   ├── mqtt_client/       # （待写）
 │   └── storage_manager/   # （待写）
@@ -58,11 +66,10 @@ USB 摄像头 (YUYV)
 
 ## 下一步
 
-1. **上板验证全链路** — 插入 USB 摄像头，运行 camera_terminal
-2. **recorder/ — MJPEG 逐帧打包 AVI**
-3. **storage_manager/ — 统一管理拍照+录像存储**
-4. **LVGL UI — 仪表盘页面**
-5. **GPS + 4G + MQTT**
+1. **storage_manager/ — 统一管理拍照+录像存储 + 拍照编码（libjpeg-turbo）**
+2. **集成 recorder 到 main.c — 按键触发录像启停**
+3. **LVGL UI — 仪表盘页面**
+4. **GPS + 4G + MQTT**
 
 ---
 
