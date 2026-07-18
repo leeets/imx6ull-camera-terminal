@@ -26,12 +26,35 @@ OUTPUT_DIR  := $(BUILD_DIR)/target
 
 # ---- 应用源码 ----
 HAL_SRCS    := $(wildcard $(HAL_DIR)/*.c)
-MOD_SRCS    := $(wildcard $(MOD_DIR)/*.c)
+MOD_SRCS    := $(wildcard $(MOD_DIR)/key_manager/*.c) \
+             $(wildcard $(MOD_DIR)/camera_capture/*.c) \
+             $(wildcard $(MOD_DIR)/fb_display/*.c) \
+             $(wildcard $(MOD_DIR)/recorder/*.c) \
+             $(wildcard $(MOD_DIR)/storage_manager/*.c)
 MAIN_SRCS   := $(wildcard $(MAIN_DIR)/*.c)
 APP_SRCS    := $(HAL_SRCS) $(MOD_SRCS) $(MAIN_SRCS)
 # ---- 编译器标志 ----
-CFLAGS      := -Wall -I$(HAL_DIR) -I$(MOD_DIR)/key_manager -I$(APP_DIR)/common/ipc -I$(APP_DIR)/common/utils
+CFLAGS      := -Wall \
+	-I$(HAL_DIR) \
+	-I$(MOD_DIR)/key_manager \
+	-I$(MOD_DIR)/camera_capture \
+	-I$(MOD_DIR)/fb_display \
+	-I$(MOD_DIR)/recorder \
+	-I$(MOD_DIR)/storage_manager \
+	-I$(APP_DIR)/common/ipc -I$(APP_DIR)/common/utils
 LDFLAGS     := -lpthread -lrt
+
+# ---- 目标文件 ----
+APP_TARGET  := $(OUTPUT_DIR)/camera_terminal
+APP_OBJS    := $(patsubst $(HAL_DIR)/%.c, $(BUILD_DIR)/$(HAL_DIR)/%.o, $(HAL_SRCS))
+APP_OBJS    += $(patsubst $(MOD_DIR)/key_manager/%.c, $(BUILD_DIR)/$(MOD_DIR)/key_manager/%.o, $(wildcard $(MOD_DIR)/key_manager/*.c))
+APP_OBJS    += $(patsubst $(MOD_DIR)/camera_capture/%.c, $(BUILD_DIR)/$(MOD_DIR)/camera_capture/%.o, $(wildcard $(MOD_DIR)/camera_capture/*.c))
+APP_OBJS    += $(patsubst $(MOD_DIR)/fb_display/%.c, $(BUILD_DIR)/$(MOD_DIR)/fb_display/%.o, $(wildcard $(MOD_DIR)/fb_display/*.c))
+APP_OBJS    += $(patsubst $(MOD_DIR)/recorder/%.c, $(BUILD_DIR)/$(MOD_DIR)/recorder/%.o, $(wildcard $(MOD_DIR)/recorder/*.c))
+APP_OBJS    += $(patsubst $(MOD_DIR)/storage_manager/%.c, $(BUILD_DIR)/$(MOD_DIR)/storage_manager/%.o, $(wildcard $(MOD_DIR)/storage_manager/*.c))
+APP_OBJS    += $(patsubst $(MAIN_DIR)/%.c, $(BUILD_DIR)/$(MAIN_DIR)/%.o, $(MAIN_SRCS))
+
+
 
 # ---- 默认目标 ----
 .PHONY: all

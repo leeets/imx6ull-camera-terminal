@@ -25,7 +25,20 @@
   - 帧级别写入: write_chunk('00dc') + padding
   - 录完回写: avih.total_frames, strh.length, RIFF size, idx1 索引表
   - 无外部依赖，纯 V4L2 帧缓存逐帧存盘
-- 待集成到 main.c（按键触发 recorder_start/stop）
+
+**Phase 6 — Storage Manager 存储管理（代码完成）**
+- storage_manager.c/h — 统一管理拍照+录像存储
+  - 自动生成路径: photo/IMG_*.jpg, video/REC_*.avi
+  - 容量限制 + 循环覆盖（按 mtime 升序删除最旧文件）
+  - 目录自动创建（photo/ video/）
+  - 查询统计: photo_count, video_count, total_bytes
+
+**Phase 7 — main.c 全功能整合（代码完成）**
+- 完整主循环: init_all → key_manager_task
+- 按键拍照 → storage_save_photo 存盘
+- 按键录像 → recorder_start/stop + storage_alloc_path
+- fb 预览 → on_preview_frame → yuyv_to_rgb565 → hal_fb_draw_rgb565
+- 优雅退出: 停止录像 → 释放资源
 
 ---
 
@@ -43,9 +56,9 @@ sources/
 │   ├── fb_display/
 │   │   └── video_convert.c/h  # YUYV→RGB565 转换
 │   ├── recorder/          # ✅ AVI MJPEG 录像模块（已完成）
+│   ├── storage_manager/   # ✅ 存储管理（已完成）
 │   ├── gps_daemon/        # （待写）
-│   ├── mqtt_client/       # （待写）
-│   └── storage_manager/   # （待写）
+│   └── mqtt_client/       # （待写）
 ├── ui/                    # LVGL（待写）
 ├── driver/gpio-keys/      # GPIO 按键驱动
 └── main/main.c
@@ -57,19 +70,26 @@ sources/
 USB 摄像头 (YUYV)
   → hal_camera_start() 帧回调
   → capture.c: preview_bridge
-  → fb_display: yuyv_to_rgb565()
-  → hal_fb_draw_rgb565()
-  → /dev/fb0 显示
+  → on_preview_frame (main.c)
+      ├── yuyv_to_rgb565() → hal_fb_draw_rgb565() → /dev/fb0
+      └── recorder_write_frame() (正在录像时)
+
+按键事件:
+  [拍照键] 短按 → capture_take_photo() → on_photo_captured()
+                                        → storage_save_photo() → SD卡
+  [录像键] 短按 → storage_alloc_path()  → recorder_start()
+           长按 → recorder_stop()
+           双击 → 全部释放 → exit
 ```
 
 ---
 
 ## 下一步
 
-1. **storage_manager/ — 统一管理拍照+录像存储 + 拍照编码（libjpeg-turbo）**
-2. **集成 recorder 到 main.c — 按键触发录像启停**
-3. **LVGL UI — 仪表盘页面**
-4. **GPS + 4G + MQTT**
+1. **上板验证全链路** — 插入 USB 摄像头，运行 camera_terminal 测试拍照+录像+预览
+2. **LVGL UI — 仪表盘页面**
+3. **GPS + 4G + MQTT**
+4. **开机自启脚本 + 稳定性测试**
 
 ---
 
