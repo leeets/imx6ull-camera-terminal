@@ -4,7 +4,7 @@
 #include <stddef.h>
 #include <linux/videodev2.h>
 
-/* 摄像头帧数据 */
+/* 摄像头 帧数据 */
 typedef struct {
     void   *data;           /* 帧数据指针（mmap 映射地址） */
     size_t  length;         /* 数据长度（字节） */

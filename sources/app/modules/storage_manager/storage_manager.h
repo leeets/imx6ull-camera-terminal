@@ -46,6 +46,8 @@ int  storage_save_photo(const void *data, size_t len);
 int  storage_save_photo_with_path(const char *custom_path, const void *data, size_t len);
 void storage_evict_oldest(storage_file_type_t type, uint64_t needed_bytes);
 int  storage_get_stats(storage_stats_t *stats);
+int  storage_check_and_evict(void);
 void storage_exit(void);
 
 #endif /* _STORAGE_MANAGER_H */
+

@@ -5,8 +5,8 @@
 
 /* 录像状态 */
 typedef enum {
-    RECORDER_IDLE,
-    RECORDER_RECORDING,
+    RECORDER_IDLE,		//空闲
+    RECORDER_RECORDING, //录像中
 } recorder_state_t;
 
 /* AVI MJPEG 录像模块

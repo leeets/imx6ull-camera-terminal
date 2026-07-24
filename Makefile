@@ -1,10 +1,10 @@
 #==============================================================================
-# imx6ull-camera-terminal é¡¶å±‚ Makefile
-# æ¿å¡: éŸ¦ä¸œå±± i.MX6ULL-Pro | å†…æ ¸: Linux 4.9.88
-# å·¥å…·é“¾: arm-linux-gnueabihf (Linaro 6.2.1)
+# imx6ull-camera-terminal ¶¥²ã Makefile
+# °å¿¨: Î¤¶«É½ i.MX6ULL-Pro | ÄÚºË: Linux 4.9.88
+# ¹¤¾ßÁ´: arm-linux-gnueabihf (Linaro 6.2.1)
 #==============================================================================
 
-# ---- è·¯å¾„é…ç½®ï¼ˆæŒ‰å®žé™…çŽ¯å¢ƒä¿®æ”¹ï¼‰ ----
+# ---- Â·¾¶ÅäÖÃ£¨°´Êµ¼Ê»·¾³ÐÞ¸Ä£©----
 KERN_DIR    := /home/lalakala/100ask_imx6ull-sdk/Linux-4.9.88
 TOOLCHAIN   := /home/lalakala/100ask_imx6ull-sdk/ToolChain/gcc-linaro-6.2.1-2016.11-x86_64_arm-linux-gnueabihf
 CROSS_COMPILE := $(TOOLCHAIN)/bin/arm-linux-gnueabihf-
@@ -12,7 +12,7 @@ CC          := $(CROSS_COMPILE)gcc
 LD          := $(CROSS_COMPILE)ld
 ARCH        := arm
 
-# ---- æºç ç›®å½• ----
+# ---- Ô´ÂëÄ¿Â¼ ----
 DRV_DIR     := driver
 APP_DIR     := app
 HAL_DIR     := $(APP_DIR)/common/hal
@@ -20,11 +20,11 @@ MOD_DIR     := $(APP_DIR)/modules
 MAIN_DIR    := $(APP_DIR)/main
 UI_DIR      := $(APP_DIR)/ui
 
-# ---- è¾“å‡ºç›®å½• ----
+# ---- Êä³öÄ¿Â¼ ----
 BUILD_DIR   := build
 OUTPUT_DIR  := $(BUILD_DIR)/target
 
-# ---- åº”ç”¨æºç  ----
+# ---- Ó¦ÓÃÔ´Âë ----
 HAL_SRCS    := $(wildcard $(HAL_DIR)/*.c)
 MOD_SRCS    := $(wildcard $(MOD_DIR)/key_manager/*.c) \
              $(wildcard $(MOD_DIR)/camera_capture/*.c) \
@@ -33,7 +33,7 @@ MOD_SRCS    := $(wildcard $(MOD_DIR)/key_manager/*.c) \
              $(wildcard $(MOD_DIR)/storage_manager/*.c)
 MAIN_SRCS   := $(wildcard $(MAIN_DIR)/*.c)
 APP_SRCS    := $(HAL_SRCS) $(MOD_SRCS) $(MAIN_SRCS)
-# ---- ç¼–è¯‘å™¨æ ‡å¿— ----
+# ---- ±àÒëÆ÷±êÖ¾ ----
 CFLAGS      := -Wall \
 	-I$(HAL_DIR) \
 	-I$(MOD_DIR)/key_manager \
@@ -42,9 +42,9 @@ CFLAGS      := -Wall \
 	-I$(MOD_DIR)/recorder \
 	-I$(MOD_DIR)/storage_manager \
 	-I$(APP_DIR)/common/ipc -I$(APP_DIR)/common/utils
-LDFLAGS     := -lpthread -lrt
+LDFLAGS     := -lpthread -lrt -ljpeg
 
-# ---- ç›®æ ‡æ–‡ä»¶ ----
+# ---- Ä¿±êÎÄ¼þ ----
 APP_TARGET  := $(OUTPUT_DIR)/camera_terminal
 APP_OBJS    := $(patsubst $(HAL_DIR)/%.c, $(BUILD_DIR)/$(HAL_DIR)/%.o, $(HAL_SRCS))
 APP_OBJS    += $(patsubst $(MOD_DIR)/key_manager/%.c, $(BUILD_DIR)/$(MOD_DIR)/key_manager/%.o, $(wildcard $(MOD_DIR)/key_manager/*.c))
@@ -56,37 +56,37 @@ APP_OBJS    += $(patsubst $(MAIN_DIR)/%.c, $(BUILD_DIR)/$(MAIN_DIR)/%.o, $(MAIN_
 
 
 
-# ---- é»˜è®¤ç›®æ ‡ ----
+# ---- Ä¬ÈÏÄ¿±ê ----
 .PHONY: all
 all: drivers apps
 
 #==============================================================================
-# 1. ç¼–è¯‘å†…æ ¸é©±åŠ¨
+# 1. ±àÒëÄÚºËÇý¶¯
 #==============================================================================
 .PHONY: drivers
 drivers:
-	@echo "=== ç¼–è¯‘é©±åŠ¨ ==="
+	@echo "=== ±àÒëÇý¶¯ ==="
 	$(MAKE) -C $(DRV_DIR)/gpio-keys KERN_DIR=$(KERN_DIR) CROSS_COMPILE=$(CROSS_COMPILE) ARCH=$(ARCH)
 
 #==============================================================================
-# 2. ç¼–è¯‘åº”ç”¨å±‚
+# 2. ±àÒëÓ¦ÓÃ²ã
 #==============================================================================
 .PHONY: apps
 apps: $(APP_TARGET)
 
-# ç¼–è¯‘æ¯ä¸ª .c â†’ .o
+# ±àÒëÃ¿¸ö .c -> .o
 $(BUILD_DIR)/%.o: %.c
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -c -o $@ $<
 
-# é“¾æŽ¥
+# Á´½Ó
 $(APP_TARGET): $(APP_OBJS)
 	@mkdir -p $(OUTPUT_DIR)
 	$(CC) -o $@ $^ $(LDFLAGS)
-	@echo "=== åº”ç”¨ç¼–è¯‘å®Œæˆ: $@ ==="
+	@echo "=== Ó¦ÓÃ±àÒëÍê³É: $@ ==="
 
 #==============================================================================
-# 3. å•ç‹¬ç¼–è¯‘æŒ‰é”®æµ‹è¯•ç¨‹åº
+# 3. µ¥¶À±àÒë°´¼ü²âÊÔ³ÌÐò
 #==============================================================================
 .PHONY: button_test
 button_test:
@@ -96,10 +96,10 @@ button_test:
 		$(HAL_DIR)/hal_key.c \
 		$(MOD_DIR)/key_manager/key_manager.c \
 		$(MOD_DIR)/key_manager/button_test.c
-	@echo "=== æµ‹è¯•ç¨‹åºç¼–è¯‘å®Œæˆ: $(OUTPUT_DIR)/button_test ==="
+	@echo "=== ²âÊÔ³ÌÐò±àÒëÍê³É: $(OUTPUT_DIR)/button_test ==="
 
 #==============================================================================
-# 5. æ¸…ç†
+# 5. ÇåÀí
 #==============================================================================
 .PHONY: clean
 clean:
@@ -111,12 +111,13 @@ distclean: clean
 	rm -f $(DRV_DIR)/gpio-keys/*.ko $(DRV_DIR)/gpio-keys/*.o $(DRV_DIR)/gpio-keys/modules.order $(DRV_DIR)/gpio-keys/Module.symvers $(DRV_DIR)/gpio-keys/button_test
 
 #==============================================================================
-# 6. æŸ¥çœ‹å½“å‰çŠ¶æ€
+# 6. ²é¿´µ±Ç°×´Ì¬
 #==============================================================================
 .PHONY: info
 info:
 	@echo "=========================================="
 	@echo "  imx6ull-camera-terminal"
-	@echo "  å·¥å…·é“¾: $(shell $(CC) --version | head -1)"
-	@echo "  å†…æ ¸: $(KERN_DIR)"
+	@echo "  ¹¤¾ßÁ´ $(shell $(CC) --version | head -1)"
+	@echo "  ÄÚºË: $(KERN_DIR)"
 	@echo "=========================================="
+

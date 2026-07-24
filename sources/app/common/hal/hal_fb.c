@@ -15,6 +15,7 @@ static int              g_screen_size = 0;
 static int              g_line_width = 0;
 static int              g_pixel_width = 0;
 
+/* 打开，设置参数 */
 int hal_fb_init(void) {
     if (g_fd_fb >= 0) return 0;
 
@@ -44,6 +45,7 @@ int hal_fb_init(void) {
     return 0;
 }
 
+//针对本项目，画出rgb
 int hal_fb_draw_rgb565(const void *rgb, int w, int h) {
     int screen_w = g_var.xres;
     int screen_h = g_var.yres;
@@ -67,7 +69,7 @@ int hal_fb_draw_rgb565(const void *rgb, int w, int h) {
         memcpy(g_fb_base + (offset_y + y) * dst_stride + offset_x * 2,
                (const unsigned char *)rgb + y * src_stride,
                copy_w * 2);
-    }
+    }		//逐个位置内存拷贝memcpy，实现屏幕显示一整个数据
     return 0;
 }
 

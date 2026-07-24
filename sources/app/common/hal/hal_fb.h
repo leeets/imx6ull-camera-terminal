@@ -1,16 +1,16 @@
 #ifndef _HAL_FB_H
 #define _HAL_FB_H
 
-/* Framebuffer HAL â€” è½»é‡å°è£… /dev/fb0 */
+/* Framebuffer HAL ÇáÁ¿·â×°£… /dev/fb0 */
 
 int  hal_fb_init(void);                              /* open + mmap */
-int  hal_fb_draw_rgb565(const void *rgb, int w, int h); /* å†™ä¸€å¸§ RGB565 åˆ°æ˜¾å­˜ */
-void hal_fb_clear(unsigned short color);              /* æ¸…å± */
+int  hal_fb_draw_rgb565(const void *rgb, int w, int h); /*  Ğ´Ò»Ö¡ RGB565 µ½ÏÔ´æ*/
+void hal_fb_clear(unsigned short color);              /* ÇåÆÁ */
 void hal_fb_exit(void);                               /* munmap + close */
 
 int  hal_fb_get_width(void);
 int  hal_fb_get_height(void);
 int  hal_fb_get_bpp(void);
-int  hal_fb_get_line_width(void);                     /* ä¸€è¡Œçš„å­—èŠ‚æ•° = xres * bpp/8 */
+int  hal_fb_get_line_width(void);                     /* Ò»ĞĞµÄ×Ö½ÚÊı = xres * bpp/8 */
 
 #endif /* _HAL_FB_H */

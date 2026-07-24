@@ -261,18 +261,7 @@ int storage_save_photo_with_path(const char *custom_path, const void *data, size
     int fd;
 
     /* 检查容量，需要时 evict */
-    uint64_t needed = len;
-    storage_stats_t stats;
-    storage_get_stats(&stats);
-    if (stats.total_bytes + needed > g_capacity) {
-        uint64_t over = stats.total_bytes + needed - g_capacity;
-        /* 多删 20% 避免频繁触发 */
-        uint64_t to_free = over + g_capacity / 5;
-        printf("[STORAGE] capacity exceeded, evicting %lu bytes\n",
-               (unsigned long)to_free);
-        storage_evict_oldest(STORAGE_TYPE_PHOTO, to_free);
-    }
-
+    storage_check_and_evict();
     fd = open(custom_path, O_WRONLY | O_CREAT | O_TRUNC, 0644);
     if (fd < 0) {
         perror("[STORAGE] open photo");
@@ -289,6 +278,22 @@ int storage_save_photo_with_path(const char *custom_path, const void *data, size
 
     close(fd);
     printf("[STORAGE] photo saved: %s (%zu bytes)\n", custom_path, len);
+    return 0;
+}
+
+
+/* ==================== 统一容量检查与混合删除 ==================== */
+int storage_check_and_evict(void) {
+    storage_stats_t stats;
+    if (storage_get_stats(&stats) < 0) return -1;
+
+    if (stats.total_bytes > stats.capacity_bytes) {
+        uint64_t over = stats.total_bytes - stats.capacity_bytes;
+        uint64_t to_free = over + stats.capacity_bytes / 5;
+        printf("[STORAGE] capacity exceeded by %lu bytes, evicting %lu\n",
+               (unsigned long)over, (unsigned long)to_free);
+        storage_evict_oldest(STORAGE_TYPE_VIDEO, to_free);	//只释放video
+    }
     return 0;
 }
 

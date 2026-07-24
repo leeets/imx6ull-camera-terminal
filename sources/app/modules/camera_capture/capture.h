@@ -3,10 +3,11 @@
 
 #include "hal_camera.h"
 
-/* 拍照回调：业务层注册，拍照完成后收到 JPEG 数据 */
+/* 拍照回调：业务层注册，拍照完成后直接收到 JPEG 数据 */
 typedef void (*capture_photo_cb_t)(const void *jpeg_data, size_t length, void *user_data);
 
-/* 预览帧回调：业务层注册，每帧预览数据 */
+/* 预览帧回调：业务层编写合适的函数（传入帧数据和用户自定义数据，实现每帧预览数据），manager层将其注册进下层 */
+/* 依然解耦合！！ hal_camera_start调桥，桥完成可控的数据管道再调自定义的g_preview_cb */
 typedef void (*capture_preview_cb_t)(const hal_camera_frame_t *frame, void *user_data);
 
 /* 接口 */

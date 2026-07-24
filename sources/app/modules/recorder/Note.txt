@@ -1,0 +1,31 @@
+数据流向:
+
+recorder_start → 写入 riff_chunk_t(RIFF) → 写入 riff_chunk_t(LIST 'hdrl') → 写入 avi_header_t(avih) → 
+写入 riff_chunk_t(LIST 'strl') → 写入 stream_header_t(strh) → 写入 bitmap_info_t(strf) → 写入 
+riff_chunk_t(LIST 'movi')
+
+recorder_write_frame → 写入 riff_chunk_t('00dc') + 帧数据
+recorder_stop → 写入 idx1_entry_t x N → 回填 avi_header_t.total_frames 和 stream_header_t.length。
+
+*结构体定义加上__attribute__((packed))修饰，原因是这些结构体需要直接写入文件，与AVI格式规范严格对应，防止编译器
+在结构体成员之间插入填充字节（padding），从而破坏文件格式。
+
+**AVI 格式的核心理念：信息头在前，数据在中，索引在后。
+
+一、全局盒信息（定义整个视频文件，什么文件、多大）：
+1、riff_chunk_t(RIFF) (最外层)是 AVI文件的根容器（相当于胶卷盒本身）。2、avi_header_t(avih) (主文件头)是 AVI 
+文件的全局属性清单。
+二、流信息（定义“视频流”本身，格式和编解码格式）：
+1、riff_chunk_t(LIST 'hdrl')(头部列表)是一个头部汇总容器，里面装着所有全局和流的头部信息。2、riff_chunk_t(LIST 'strl') 
+(流列表)是一个特定流的属性容器。对于视频流，它里面封装了 strh流头（类型） 和 
+strf流格式（详述视频帧的格式）。
+三、数据与索引（真正的胶片，视频数据和索引表）：
+1、riff_chunk_t(LIST 'movi') (数据列表)这是一个音视频数据块的容器。里面按顺序排列着实际的帧数据块。
+2、riff_chunk_t('00dc') (视频帧数据块)这是一帧视频数据的块标签（00dc 表示“视频帧”）。每个 00dc 
+块后紧跟着这一帧的二进制数据。在 recorder_write_frame 中，你不断地写入这些 “00dc + 帧数据”，就形成了视频流。
+3、idx1_entry_t x N (索引表)
+这是位于文件末尾的索引目录。它记录了每个数据块（如每一帧 00dc）在文件中的偏移位置和大小。这样播放器在随机拖动进度条时，
+无需从头扫描整个 movi 块，可以直接跳转到指定帧，实现快进、快退、随机访问功能。
+
+
+

@@ -1,17 +1,23 @@
-/*
- * main.c — 车载终端主入口
+﻿/*
+ * main.c - 车载终端主入口
  *
  * 整合模块:
- *   key_manager   → 按键事件
- *   capture       → 摄像头采集 (YUYV)
- *   recorder      → MJPEG/AVI 录像
- *   storage_manager → 照片/录像文件管理 + 循环覆盖
- *   hal_fb        → /dev/fb0 实时预览
- *   video_convert → YUYV→RGB565 转换
+ *   key_manager   -> 按键事件
+ *   capture       -> 摄像头采集(MJPEG)
+ *   recorder      -> MJPEG/AVI 录像
+ *   storage_manager -> 照片/录像文件管理 + 循环覆盖
+ *   hal_fb        -> /dev/fb0 实时预览
+ *   video_convert -> MJPEG -> RGB565 转换
  *
  * 按键功能:
- *   [拍照键] 短按 → 拍照
- *   [录像键] 短按 → 开始录像 | 长按 → 停止 | 双击 → 退出
+ *   [拍照键] 短按 -> 拍照
+ *   [录像键] 短按 -> 开始录像 | 长按 -> 停止 | 双击 -> 退出
+ *
+ * 线程架构说明：
+ *   所有耗时操作都不在主线程和 V4L2 采集线程中执行。
+ *   capture 模块内部有独立工作线程处理 MJPEG 解码和预览回调，
+ *   recorder 模块内部有独立线程处理 SD 卡文件写入，
+ *   main.c 的 on_preview_frame 回调现在运行在 capture 的工作线程中。
  */
 
 #include <stdio.h>
@@ -25,16 +31,26 @@
 #include "recorder.h"
 #include "storage_manager.h"
 #include "hal_fb.h"
+#include "hal_touch.h"
 #include "video_convert.h"
 
 /* ==================== 全局状态 ==================== */
 static volatile int g_running = 1;
 
-/* 预览帧回调 — capture 每帧到来时调用 */
+/*
+ * 预览帧回调 —— 运行在 capture 模块的工作线程中（非 V4L2 采集线程）
+ *
+ * 因为 MJPEG 解码和 FB 写入都比较耗时，所以不能放在 V4L2 的 DQBUF 回调里。
+ * capture 内部有帧队列 + 工作线程，V4L2 线程只做入队，
+ * 解码 + FB 写入 + 录制入队都在独立工作线程中执行。
+ *
+ * frame->data 是 malloc 拷贝的独立缓冲区，用完即 free，
+ * 与 V4L2 的 mmap 缓冲区无关联，可以安全持有和使用。
+ */
 static void on_preview_frame(const hal_camera_frame_t *frame, void *user_data) {
     (void)user_data;
 
-    /* 转 RGB565 并写入 fb */
+    /* 静态缓存区：避免每帧重复 malloc/free RGB565 缓冲区 */
     static void *rgb_buf = NULL;
     static int rgb_buf_size = 0;
 
@@ -48,14 +64,22 @@ static void on_preview_frame(const hal_camera_frame_t *frame, void *user_data) {
         if (!rgb_buf) return;
     }
 
-    yuyv_to_rgb565(frame->data, rgb_buf, w, h);
+    /* MJPEG 解码转 RGB565 */
+    if (mjpeg_to_rgb565(frame->data, frame->length, rgb_buf, w, h) < 0) {
+        /* 解码失败，跳过此帧显示 */
+        return;
+    }
+
+    /* 写入 FrameBuffer 显示 */
     hal_fb_draw_rgb565(rgb_buf, w, h);
 
-    /* 如果正在录像，同时写入 recorder */
-    /* (这里只实现预览，录像帧由关键路径控制避免性能问题) */
+    /* 如果正在录像，将 MJPEG 帧入队到 recorder 队列（异步写入 SD 卡） */
+    if (recorder_get_state() == RECORDER_RECORDING) {
+        recorder_write_frame(frame->data, frame->length);
+    }
 }
 
-/* 拍照回调 — capture_take_photo 完成后调用 */
+/* 拍照回调 - capture_take_photo 完成后调用 */
 static void on_photo_captured(const void *jpeg_data, size_t length, void *user_data) {
     (void)user_data;
     printf("[MAIN] photo captured: %zu bytes\n", length);
@@ -74,13 +98,11 @@ void on_key_event(key_event_type_t event) {
     switch (event) {
     case KEY_EVENT_CAPTURE:
         printf("[MAIN] 拍照\n");
-        /* 直接调 capture_take_photo，传入 on_photo_captured 回调 */
         capture_take_photo(on_photo_captured, NULL);
         break;
 
     case KEY_EVENT_RECORD_START:
         if (!recording) {
-            /* 分配录像文件路径 */
             if (storage_alloc_path(STORAGE_TYPE_VIDEO, video_path, sizeof(video_path)) < 0) {
                 fprintf(stderr, "[MAIN] alloc video path failed\n");
                 break;
@@ -123,7 +145,6 @@ static int init_all(const char *cam_dev) {
     /* 1. 存储 */
     if (storage_init("/mnt/sd", 512UL * 1024 * 1024) < 0) {
         fprintf(stderr, "[MAIN] storage_init failed, try /tmp\n");
-        /* fallback: 如果没有 SD 卡，用 /tmp 测试 */
         storage_init("/tmp", 32UL * 1024 * 1024);
     }
 
@@ -136,7 +157,6 @@ static int init_all(const char *cam_dev) {
     /* 3. Framebuffer */
     if (hal_fb_init() < 0) {
         fprintf(stderr, "[MAIN] fb 初始化失败，无预览\n");
-        /* 非致命，继续运行 */
     }
 
     /* 4. Recorder（只设参数，不启动） */
@@ -152,7 +172,11 @@ static int init_all(const char *cam_dev) {
     /* 6. 启动预览流 */
     if (capture_start_preview(on_preview_frame, NULL) < 0) {
         fprintf(stderr, "[MAIN] 预览启动失败\n");
-        /* 非致命 */
+    }
+
+    /* 7. 触摸屏 */
+    if (hal_touch_init("/dev/input/event1") < 0) {
+        fprintf(stderr, "[MAIN] touch init failed, UI buttons will not work via touch\n");
     }
 
     return 0;
@@ -165,8 +189,8 @@ int main(int argc, char **argv) {
     if (argc > 1) cam_dev = argv[1];
 
     printf("========================================\n");
-    printf("  嵌软Linux 车载终端 v2\n");
-    printf("  摄像头: %s\n", cam_dev);
+    printf("  嵌入式Linux 车载终端 v2\n");
+    printf("  摄像头 %s\n", cam_dev);
     printf("========================================\n");
 
     if (init_all(cam_dev) < 0) {
@@ -175,8 +199,8 @@ int main(int argc, char **argv) {
     }
 
     printf("系统就绪\n");
-    printf("  [拍照键] 短按 → 拍照并存储到SD卡\n");
-    printf("  [录像键] 短按 → 开始录像 | 长按 → 停止 | 双击 → 退出\n");
+    printf("  [拍照键] 短按 -> 拍照并存储到SD卡\n");
+    printf("  [录像键] 短按 -> 开始录像 | 长按 -> 停止 | 双击 -> 退出\n");
 
     while (g_running) {
         key_manager_task();
