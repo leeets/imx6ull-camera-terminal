@@ -1,10 +1,10 @@
-#==============================================================================
-# imx6ull-camera-terminal ¶¥²ã Makefile
-# °å¿¨: Î¤¶«É½ i.MX6ULL-Pro | ÄÚºË: Linux 4.9.88
-# ¹¤¾ßÁ´: arm-linux-gnueabihf (Linaro 6.2.1)
+ï»¿#==============================================================================
+# imx6ull-camera-terminal é¡¶å±‚ Makefile
+# æ¿å¡: éŸ¦ä¸œå±± i.MX6ULL-Pro | å†…æ ¸: Linux 4.9.88
+# å·¥å…·é“¾: arm-linux-gnueabihf (Linaro 6.2.1)
 #==============================================================================
 
-# ---- Â·¾¶ÅäÖÃ£¨°´Êµ¼Ê»·¾³ÐÞ¸Ä£©----
+# ---- è·¯å¾„é…ç½®ï¼ˆæŒ‰å®žé™…çŽ¯å¢ƒä¿®æ”¹ï¼‰----
 KERN_DIR    := /home/lalakala/100ask_imx6ull-sdk/Linux-4.9.88
 TOOLCHAIN   := /home/lalakala/100ask_imx6ull-sdk/ToolChain/gcc-linaro-6.2.1-2016.11-x86_64_arm-linux-gnueabihf
 CROSS_COMPILE := $(TOOLCHAIN)/bin/arm-linux-gnueabihf-
@@ -12,81 +12,115 @@ CC          := $(CROSS_COMPILE)gcc
 LD          := $(CROSS_COMPILE)ld
 ARCH        := arm
 
-# ---- Ô´ÂëÄ¿Â¼ ----
+# ---- æºç ç›®å½• ----
 DRV_DIR     := driver
 APP_DIR     := app
 HAL_DIR     := $(APP_DIR)/common/hal
 MOD_DIR     := $(APP_DIR)/modules
 MAIN_DIR    := $(APP_DIR)/main
 UI_DIR      := $(APP_DIR)/ui
+LVGL_DIR    := $(UI_DIR)/lvgl
+PORT_DIR    := $(UI_DIR)/porting
 
-# ---- Êä³öÄ¿Â¼ ----
+# ---- è¾“å‡ºç›®å½• ----
 BUILD_DIR   := build
 OUTPUT_DIR  := $(BUILD_DIR)/target
 
-# ---- Ó¦ÓÃÔ´Âë ----
+# ---- åº”ç”¨æºç  ----
 HAL_SRCS    := $(wildcard $(HAL_DIR)/*.c)
 MOD_SRCS    := $(wildcard $(MOD_DIR)/key_manager/*.c) \
              $(wildcard $(MOD_DIR)/camera_capture/*.c) \
              $(wildcard $(MOD_DIR)/fb_display/*.c) \
              $(wildcard $(MOD_DIR)/recorder/*.c) \
-             $(wildcard $(MOD_DIR)/storage_manager/*.c)
+             $(wildcard $(MOD_DIR)/storage_manager/*.c) \
+             $(wildcard $(MOD_DIR)/gps_daemon/*.c)
 MAIN_SRCS   := $(wildcard $(MAIN_DIR)/*.c)
-APP_SRCS    := $(HAL_SRCS) $(MOD_SRCS) $(MAIN_SRCS)
-# ---- ±àÒëÆ÷±êÖ¾ ----
+
+# ---- LVGL æºç  ----
+LVGL_CORE   := $(wildcard $(LVGL_DIR)/src/core/*.c)
+LVGL_DRAW   := $(wildcard $(LVGL_DIR)/src/draw/*.c)
+LVGL_DRAWSW := $(wildcard $(LVGL_DIR)/src/draw/sw/*.c)
+LVGL_EXTRA  := $(wildcard $(LVGL_DIR)/src/extra/*.c)
+LVGL_EXTLAY := $(wildcard $(LVGL_DIR)/src/extra/layouts/*.c)
+LVGL_EXTHME := $(wildcard $(LVGL_DIR)/src/extra/themes/*.c)
+LVGL_EXTWGT := $(wildcard $(LVGL_DIR)/src/extra/widgets/*.c)
+LVGL_FONT   := $(wildcard $(LVGL_DIR)/src/font/*.c)
+LVGL_HAL    := $(wildcard $(LVGL_DIR)/src/hal/*.c)
+LVGL_MISC   := $(wildcard $(LVGL_DIR)/src/misc/*.c)
+LVGL_WIDGET := $(wildcard $(LVGL_DIR)/src/widgets/*.c)
+
+LVGL_SRC    := $(LVGL_CORE) $(LVGL_DRAW) $(LVGL_DRAWSW) $(LVGL_EXTRA) $(LVGL_EXTLAY) $(LVGL_EXTHME) $(LVGL_EXTWGT) $(LVGL_FONT) $(LVGL_HAL) $(LVGL_MISC) $(LVGL_WIDGET)
+
+# ---- SquareLine UI / porting / bridge ----
+UI_APP_SRCS := $(wildcard $(UI_DIR)/app/*.c) \
+               $(wildcard $(UI_DIR)/app/screens/*.c) \
+               $(wildcard $(UI_DIR)/app/components/*.c)
+PORT_SRCS   := $(wildcard $(PORT_DIR)/*.c)
+UI_BRIDGE_SRCS := $(wildcard $(MAIN_DIR)/ui_bridge.c)
+
+APP_SRCS    := $(HAL_SRCS) $(MOD_SRCS) $(MAIN_SRCS) $(LVGL_SRC) $(UI_APP_SRCS) $(PORT_SRCS) $(UI_BRIDGE_SRCS)
+# ---- ç¼–è¯‘å™¨æ ‡å¿— ----
 CFLAGS      := -Wall \
 	-I$(HAL_DIR) \
 	-I$(MOD_DIR)/key_manager \
+	-I$(MOD_DIR)/gps_daemon \
 	-I$(MOD_DIR)/camera_capture \
 	-I$(MOD_DIR)/fb_display \
 	-I$(MOD_DIR)/recorder \
 	-I$(MOD_DIR)/storage_manager \
-	-I$(APP_DIR)/common/ipc -I$(APP_DIR)/common/utils
-LDFLAGS     := -lpthread -lrt -ljpeg
+	-I$(APP_DIR)/common/ipc -I$(APP_DIR)/common/utils -I$(UI_DIR) -I$(LVGL_DIR) -I$(PORT_DIR) -I$(UI_DIR)/app
+LDFLAGS     := -lpthread -lrt -ljpeg -lm
 
-# ---- Ä¿±êÎÄ¼þ ----
+# ---- ç›®æ ‡æ–‡ä»¶ ----
 APP_TARGET  := $(OUTPUT_DIR)/camera_terminal
 APP_OBJS    := $(patsubst $(HAL_DIR)/%.c, $(BUILD_DIR)/$(HAL_DIR)/%.o, $(HAL_SRCS))
 APP_OBJS    += $(patsubst $(MOD_DIR)/key_manager/%.c, $(BUILD_DIR)/$(MOD_DIR)/key_manager/%.o, $(wildcard $(MOD_DIR)/key_manager/*.c))
+APP_OBJS    += $(patsubst $(MOD_DIR)/gps_daemon/%.c, $(BUILD_DIR)/$(MOD_DIR)/gps_daemon/%.o, $(wildcard $(MOD_DIR)/gps_daemon/*.c))
 APP_OBJS    += $(patsubst $(MOD_DIR)/camera_capture/%.c, $(BUILD_DIR)/$(MOD_DIR)/camera_capture/%.o, $(wildcard $(MOD_DIR)/camera_capture/*.c))
 APP_OBJS    += $(patsubst $(MOD_DIR)/fb_display/%.c, $(BUILD_DIR)/$(MOD_DIR)/fb_display/%.o, $(wildcard $(MOD_DIR)/fb_display/*.c))
 APP_OBJS    += $(patsubst $(MOD_DIR)/recorder/%.c, $(BUILD_DIR)/$(MOD_DIR)/recorder/%.o, $(wildcard $(MOD_DIR)/recorder/*.c))
 APP_OBJS    += $(patsubst $(MOD_DIR)/storage_manager/%.c, $(BUILD_DIR)/$(MOD_DIR)/storage_manager/%.o, $(wildcard $(MOD_DIR)/storage_manager/*.c))
 APP_OBJS    += $(patsubst $(MAIN_DIR)/%.c, $(BUILD_DIR)/$(MAIN_DIR)/%.o, $(MAIN_SRCS))
+APP_OBJS    += $(patsubst $(LVGL_DIR)/src/%.c, $(BUILD_DIR)/$(LVGL_DIR)/src/%.o, $(LVGL_SRC))
+APP_OBJS    += $(patsubst $(UI_DIR)/app/%.c, $(BUILD_DIR)/$(UI_DIR)/app/%.o, $(wildcard $(UI_DIR)/app/*.c))
+APP_OBJS    += $(patsubst $(UI_DIR)/app/screens/%.c, $(BUILD_DIR)/$(UI_DIR)/app/screens/%.o, $(wildcard $(UI_DIR)/app/screens/*.c))
+APP_OBJS    += $(patsubst $(UI_DIR)/app/components/%.c, $(BUILD_DIR)/$(UI_DIR)/app/components/%.o, $(wildcard $(UI_DIR)/app/components/*.c))
+APP_OBJS    += $(patsubst $(PORT_DIR)/%.c, $(BUILD_DIR)/$(PORT_DIR)/%.o, $(PORT_SRCS))
+APP_OBJS    += $(patsubst $(MAIN_DIR)/ui_bridge.c, $(BUILD_DIR)/$(MAIN_DIR)/ui_bridge.o, $(wildcard $(MAIN_DIR)/ui_bridge.c))
 
 
 
-# ---- Ä¬ÈÏÄ¿±ê ----
+# ---- é»˜è®¤ç›®æ ‡ ----
 .PHONY: all
 all: drivers apps
 
 #==============================================================================
-# 1. ±àÒëÄÚºËÇý¶¯
+# 1. ç¼–è¯‘å†…æ ¸é©±åŠ¨
 #==============================================================================
 .PHONY: drivers
 drivers:
-	@echo "=== ±àÒëÇý¶¯ ==="
+	@echo "=== ç¼–è¯‘é©±åŠ¨ ==="
 	$(MAKE) -C $(DRV_DIR)/gpio-keys KERN_DIR=$(KERN_DIR) CROSS_COMPILE=$(CROSS_COMPILE) ARCH=$(ARCH)
 
 #==============================================================================
-# 2. ±àÒëÓ¦ÓÃ²ã
+# 2. ç¼–è¯‘åº”ç”¨å±‚
 #==============================================================================
 .PHONY: apps
 apps: $(APP_TARGET)
 
-# ±àÒëÃ¿¸ö .c -> .o
+# ç¼–è¯‘æ¯ä¸ª .c -> .o
 $(BUILD_DIR)/%.o: %.c
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -c -o $@ $<
 
-# Á´½Ó
+# é“¾æŽ¥
 $(APP_TARGET): $(APP_OBJS)
 	@mkdir -p $(OUTPUT_DIR)
 	$(CC) -o $@ $^ $(LDFLAGS)
-	@echo "=== Ó¦ÓÃ±àÒëÍê³É: $@ ==="
+	@echo "=== åº”ç”¨ç¼–è¯‘å®Œæˆ: $@ ==="
 
 #==============================================================================
-# 3. µ¥¶À±àÒë°´¼ü²âÊÔ³ÌÐò
+# 3. å•ç‹¬ç¼–è¯‘æŒ‰é”®æµ‹è¯•ç¨‹åº
 #==============================================================================
 .PHONY: button_test
 button_test:
@@ -96,10 +130,10 @@ button_test:
 		$(HAL_DIR)/hal_key.c \
 		$(MOD_DIR)/key_manager/key_manager.c \
 		$(MOD_DIR)/key_manager/button_test.c
-	@echo "=== ²âÊÔ³ÌÐò±àÒëÍê³É: $(OUTPUT_DIR)/button_test ==="
+	@echo "=== æµ‹è¯•ç¨‹åºç¼–è¯‘å®Œæˆ: $(OUTPUT_DIR)/button_test ==="
 
 #==============================================================================
-# 5. ÇåÀí
+# 5. æ¸…ç†
 #==============================================================================
 .PHONY: clean
 clean:
@@ -111,13 +145,16 @@ distclean: clean
 	rm -f $(DRV_DIR)/gpio-keys/*.ko $(DRV_DIR)/gpio-keys/*.o $(DRV_DIR)/gpio-keys/modules.order $(DRV_DIR)/gpio-keys/Module.symvers $(DRV_DIR)/gpio-keys/button_test
 
 #==============================================================================
-# 6. ²é¿´µ±Ç°×´Ì¬
+# 6. æŸ¥çœ‹å½“å‰çŠ¶æ€
 #==============================================================================
 .PHONY: info
 info:
 	@echo "=========================================="
 	@echo "  imx6ull-camera-terminal"
-	@echo "  ¹¤¾ßÁ´ $(shell $(CC) --version | head -1)"
-	@echo "  ÄÚºË: $(KERN_DIR)"
+	@echo "  å·¥å…·é“¾ $(shell $(CC) --version | head -1)"
+	@echo "  å†…æ ¸: $(KERN_DIR)"
 	@echo "=========================================="
+
+
+
 

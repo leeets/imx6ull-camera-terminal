@@ -1,0 +1,9 @@
+ui_bridge桥接：
+
+LVGL两个图像控件(image)的函数 -- 更新当前照片浏览、实时更新监控预览帧。
+状态标签实时绑定 --  状态标签实时更新到屏幕上的label上。
+实现屏幕上的按键功能，要调用另外的存储函数实现功能逻辑（对应的真正功能要在storage管理中实现：得到照片、得到照片数量、删除照片等等）。
+
+main中修改on_preview_frame不要直接放进fb ，而是通过 ui_bridge_update_preview(rgb_buf); 	异步更新 LVGL 控件 即可，同时lvgl接管显示刷新。
+
+注意：SquareLine 导出会覆盖 app/：所以所有手改代码写在 ui_bridge.c，不要改 screens/ 下文件。

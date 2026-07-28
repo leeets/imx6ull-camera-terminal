@@ -301,3 +301,70 @@ void storage_exit(void) {
     /* 当前无动态资源需要释放 */
     printf("[STORAGE] exit\n");
 }
+/* ==================== 照片列表接口（供 UI 相册调用） ==================== */
+
+/* scandir 过滤：只保留 .jpg 文件 */
+static int filter_jpg(const struct dirent *d)
+{
+    const char *name = d->d_name;
+    if (d->d_type != DT_REG && d->d_type != DT_UNKNOWN) return 0;
+    size_t len = strlen(name);
+    if (len < 4) return 0;
+    return (strcasecmp(name + len - 4, ".jpg") == 0);
+}
+
+int storage_list_photos(char ***out_paths, int *out_count)
+{
+    if (!out_paths || !out_count) return -1;
+
+    *out_paths = NULL;
+    *out_count = 0;
+
+    char photo_dir[288];
+    snprintf(photo_dir, sizeof(photo_dir), "%s/photo", g_root);
+
+    struct dirent **entries;
+    int n = scandir(photo_dir, &entries, filter_jpg, alphasort);
+    if (n <= 0) return 0;  /* 无照片不是错误 */
+
+    char **paths = calloc(n, sizeof(char *));
+    if (!paths) {
+        for (int i = 0; i < n; i++) free(entries[i]);
+        free(entries);
+        return -1;
+    }
+
+    int count = 0;
+    for (int i = 0; i < n; i++) {
+        char full[512];
+        snprintf(full, sizeof(full), "%s/%s", photo_dir, entries[i]->d_name);
+        paths[count] = strdup(full);
+        if (paths[count]) count++;
+        free(entries[i]);
+    }
+    free(entries);
+
+    *out_paths = paths;
+    *out_count = count;
+    return 0;
+}
+
+void storage_free_photo_list(char **paths, int count)
+{
+    if (!paths) return;
+    for (int i = 0; i < count; i++) {
+        free(paths[i]);
+    }
+    free(paths);
+}
+
+int storage_delete_photo(const char *path)
+{
+    if (!path) return -1;
+    if (remove(path) < 0) {
+        perror("[STORAGE] delete photo");
+        return -1;
+    }
+    printf("[STORAGE] photo deleted: %s\n", path);
+    return 0;
+}

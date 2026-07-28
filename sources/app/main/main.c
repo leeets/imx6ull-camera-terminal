@@ -1,9 +1,9 @@
-﻿/*
+/*
  * main.c - 车载终端主入口
  *
  * 整合模块:
  *   key_manager   -> 按键事件
- *   capture       -> 摄像头采集(MJPEG)
+ *   capture       -> 摄像头采集 (MJPEG)
  *   recorder      -> MJPEG/AVI 录像
  *   storage_manager -> 照片/录像文件管理 + 循环覆盖
  *   hal_fb        -> /dev/fb0 实时预览
@@ -13,11 +13,15 @@
  *   [拍照键] 短按 -> 拍照
  *   [录像键] 短按 -> 开始录像 | 长按 -> 停止 | 双击 -> 退出
  *
- * 线程架构说明：
+ * 线程架构说明:
  *   所有耗时操作都不在主线程和 V4L2 采集线程中执行。
  *   capture 模块内部有独立工作线程处理 MJPEG 解码和预览回调，
  *   recorder 模块内部有独立线程处理 SD 卡文件写入，
  *   main.c 的 on_preview_frame 回调现在运行在 capture 的工作线程中。
+ *
+ * UI 交互:
+ *   实体按键（2个GPIO按键）: 拍照、录像、停止录像、退出程序
+ *   屏幕虚拟按键: 相册入口、照片翻页、删除、返回（由 LVGL 触摸事件驱动）
  */
 
 #include <stdio.h>
@@ -32,13 +36,19 @@
 #include "storage_manager.h"
 #include "hal_fb.h"
 #include "hal_touch.h"
+#include "gps_daemon.h"
 #include "video_convert.h"
+#include "lvgl/lvgl.h"
+#include "ui.h"
+#include "lv_port_disp.h"
+#include "lv_port_indev.h"
+#include "ui_bridge.h"
 
 /* ==================== 全局状态 ==================== */
 static volatile int g_running = 1;
 
 /*
- * 预览帧回调 —— 运行在 capture 模块的工作线程中（非 V4L2 采集线程）
+ * 预览帧回调 — 运行在 capture 模块的工作线程中（非 V4L2 采集线程）
  *
  * 因为 MJPEG 解码和 FB 写入都比较耗时，所以不能放在 V4L2 的 DQBUF 回调里。
  * capture 内部有帧队列 + 工作线程，V4L2 线程只做入队，
@@ -50,7 +60,7 @@ static volatile int g_running = 1;
 static void on_preview_frame(const hal_camera_frame_t *frame, void *user_data) {
     (void)user_data;
 
-    /* 静态缓存区：避免每帧重复 malloc/free RGB565 缓冲区 */
+    /* 静态缓冲区：避免每帧重复 malloc/free RGB565 缓冲区 */
     static void *rgb_buf = NULL;
     static int rgb_buf_size = 0;
 
@@ -70,10 +80,10 @@ static void on_preview_frame(const hal_camera_frame_t *frame, void *user_data) {
         return;
     }
 
-    /* 写入 FrameBuffer 显示 */
-    hal_fb_draw_rgb565(rgb_buf, w, h);
+    /* 通过 LVGL的ui_bridge 异步更新 LVGL 图像控件（采集线程 → 主线程 lv_async_call）*/
+    ui_bridge_update_preview(rgb_buf);
 
-    /* 如果正在录像，将 MJPEG 帧入队到 recorder 队列（异步写入 SD 卡） */
+    /* 如果正在录像，将 MJPEG 帧入队列到 recorder 队列（异步写 SD 卡）*/
     if (recorder_get_state() == RECORDER_RECORDING) {
         recorder_write_frame(frame->data, frame->length);
     }
@@ -93,7 +103,6 @@ static void on_photo_captured(const void *jpeg_data, size_t length, void *user_d
 void on_key_event(key_event_type_t event) {
     static int recording = 0;
     static char video_path[512];
-    static int photo_pending = 0;
 
     switch (event) {
     case KEY_EVENT_CAPTURE:
@@ -135,6 +144,7 @@ void on_key_event(key_event_type_t event) {
         hal_fb_exit();
         key_manager_exit();
         storage_exit();
+        gps_exit();
         g_running = 0;
         break;
     }
@@ -154,29 +164,41 @@ static int init_all(const char *cam_dev) {
         return -1;
     }
 
-    /* 3. Framebuffer */
+    /* 3. Framebuffer - LVGL 显示后端依赖 hal_fb */
     if (hal_fb_init() < 0) {
         fprintf(stderr, "[MAIN] fb 初始化失败，无预览\n");
     }
 
-    /* 4. Recorder（只设参数，不启动） */
+    /* 4. LVGL UI 初始化 */
+    lv_init();
+    lv_port_disp_init();
+    lv_port_indev_init();
+    ui_init();
+    ui_bridge_init();
+
+    /* 5. Recorder（只设参数，不启动）*/
     recorder_init(640, 480, 15);
 
-    /* 5. 按键 */
+    /* 6. 按键 */
     if (key_manager_init() < 0) {
         fprintf(stderr, "[MAIN] 按键初始化失败\n");
         return -1;
     }
     key_manager_register_callback(on_key_event);
 
-    /* 6. 启动预览流 */
+    /* 7. 启动预览流 */
     if (capture_start_preview(on_preview_frame, NULL) < 0) {
         fprintf(stderr, "[MAIN] 预览启动失败\n");
     }
 
-    /* 7. 触摸屏 */
+    /* 8. 触摸屏 */
     if (hal_touch_init("/dev/input/event1") < 0) {
         fprintf(stderr, "[MAIN] touch init failed, UI buttons will not work via touch\n");
+    }
+
+    /* 9. GPS 定位模块 */
+    if (gps_init(NULL) < 0) {
+        fprintf(stderr, "[MAIN] GPS 初始化失败，继续运行\n");
     }
 
     return 0;
@@ -190,7 +212,7 @@ int main(int argc, char **argv) {
 
     printf("========================================\n");
     printf("  嵌入式Linux 车载终端 v2\n");
-    printf("  摄像头 %s\n", cam_dev);
+    printf("  摄像头: %s\n", cam_dev);
     printf("========================================\n");
 
     if (init_all(cam_dev) < 0) {
@@ -204,6 +226,27 @@ int main(int argc, char **argv) {
 
     while (g_running) {
         key_manager_task();
+        lv_timer_handler();
+        usleep(5000);
+
+        /* 每 100 轮打印一次 GPS 定位状态 */
+        {
+            static int gps_print_counter = 0;
+            if (++gps_print_counter >= 100) {
+                gps_print_counter = 0;
+                if (gps_is_valid()) {
+                    gps_data_t gps;
+                    if (gps_get_data(&gps) == 0) {
+                        printf("[GPS] %02d:%02d:%02d UTC, lat=%.6f lon=%.6f alt=%.1fm sats=%d spd=%.1fkn\n",
+                               gps.hour, gps.minute, gps.second,
+                               gps.latitude, gps.longitude,
+                               gps.altitude, gps.satellites, gps.speed);
+                    }
+                } else {
+                    printf("[GPS] 定位中...\n");
+                }
+            }
+        }
     }
 
     printf("[MAIN] 正常退出\n");
