@@ -13,6 +13,7 @@
 /*********************
  *      INCLUDES
  *********************/
+#include "mqtt_client.h"
 #include "ui_bridge.h"
 #include "lvgl/lvgl.h"
 #include "ui.h"
@@ -104,8 +105,12 @@ static void refresh_status_labels(void)
     }
 
     /* 4. 网络状态（预留，当前显示占位）*/
-    lv_label_set_text(ui_LabelNet, "网络: --");
-}
+    /* 4. 网络状态（读取 g_mqtt_connected）*/
+    if (g_mqtt_connected) {
+        lv_label_set_text(ui_LabelNet, "网络: ● 已连接");
+    } else {
+        lv_label_set_text(ui_LabelNet, "网络: ○ 断开");
+    }
 
 /**********************
  *  状态定时器回调

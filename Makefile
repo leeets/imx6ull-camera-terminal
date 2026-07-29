@@ -32,6 +32,7 @@ MOD_SRCS    := $(wildcard $(MOD_DIR)/key_manager/*.c) \
              $(wildcard $(MOD_DIR)/camera_capture/*.c) \
              $(wildcard $(MOD_DIR)/fb_display/*.c) \
              $(wildcard $(MOD_DIR)/recorder/*.c) \
+             $(wildcard $(MOD_DIR)/mqtt_client/*.c) \
              $(wildcard $(MOD_DIR)/storage_manager/*.c) \
              $(wildcard $(MOD_DIR)/gps_daemon/*.c)
 MAIN_SRCS   := $(wildcard $(MAIN_DIR)/*.c)

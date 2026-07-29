@@ -1,4 +1,4 @@
-/*
+﻿/*
  * main.c - 车载终端主入口
  *
  * 整合模块:
@@ -8,6 +8,7 @@
  *   storage_manager -> 照片/录像文件管理 + 循环覆盖
  *   hal_fb        -> /dev/fb0 实时预览
  *   video_convert -> MJPEG -> RGB565 转换
+ *   mqtt_client   -> MQTT 网络通信
  *
  * 按键功能:
  *   [拍照键] 短按 -> 拍照
@@ -43,6 +44,7 @@
 #include "lv_port_disp.h"
 #include "lv_port_indev.h"
 #include "ui_bridge.h"
+#include "mqtt_client.h"
 
 /* ==================== 全局状态 ==================== */
 static volatile int g_running = 1;
@@ -171,10 +173,10 @@ static int init_all(const char *cam_dev) {
 
     /* 4. LVGL UI 初始化 */
     lv_init();
-    lv_port_disp_init();
-    lv_port_indev_init();
-    ui_init();
-    ui_bridge_init();
+    lv_port_disp_init();	//显示移植功能 （设置屏幕参数 + 写disp_flush刷整个屏幕 
+    lv_port_indev_init();	//输入移植功能  (设置类型参数 + pointer_read读触摸屏按下事件交给LVGL)
+    ui_init();				//初始化UI显示
+    ui_bridge_init();		//UI 桥接初始化-注册按钮事件回调
 
     /* 5. Recorder（只设参数，不启动）*/
     recorder_init(640, 480, 15);
@@ -192,7 +194,7 @@ static int init_all(const char *cam_dev) {
     }
 
     /* 8. 触摸屏 */
-    if (hal_touch_init("/dev/input/event1") < 0) {
+    if (hal_touch_init("/dev/input/event0") < 0) {
         fprintf(stderr, "[MAIN] touch init failed, UI buttons will not work via touch\n");
     }
 
@@ -200,6 +202,16 @@ static int init_all(const char *cam_dev) {
     if (gps_init(NULL) < 0) {
         fprintf(stderr, "[MAIN] GPS 初始化失败，继续运行\n");
     }
+
+    /* 10. MQTT 客户端 */
+    if (mqtt_init("192.168.1.100", 1883, "imx6ull_cam") == 0) {
+        if (mqtt_connect() == 0) {
+            printf("[MAIN] MQTT 已连接\n");
+        }
+    } else {
+        fprintf(stderr, "[MAIN] MQTT 初始化失败，继续运行\n");
+    }
+
 
     return 0;
 }
@@ -226,6 +238,7 @@ int main(int argc, char **argv) {
 
     while (g_running) {
         key_manager_task();
+        mqtt_loop();
         lv_timer_handler();
         usleep(5000);
 
