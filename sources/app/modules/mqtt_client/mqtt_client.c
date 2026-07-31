@@ -53,13 +53,13 @@
 /* 默认配置 */
 #define MQTT_DEFAULT_KEEPALIVE 30   /* 心跳间隔秒数 */
 #define MQTT_RECV_BUF_SIZE     4096
-#define MQTT_MAX_SUBSCRIBERS    16
+#define MQTT_MAX_SUBSCRIBERS    16	/* 最大订阅者数量 */
 
 /**********************
  *  STRUCTURES
  **********************/
 
-/* 订阅者条目 */
+/* 订阅者条目（本client设备可以有好几个订阅信息） */
 typedef struct {
     char              topic[128];
     size_t            topic_len;
@@ -69,7 +69,7 @@ typedef struct {
     bool              active;
 } mqtt_subscriber_t;
 
-/* MQTT 客户端实例 */
+/* MQTT 客户端实例（仅此一个设备就是client） */
 typedef struct {
     /* 连接参数 */
     char      host[256];
@@ -100,13 +100,13 @@ typedef struct {
  *  STATIC VARIABLES
  **********************/
 
-static mqtt_client_t g_mqtt = {0};
+static mqtt_client_t g_mqtt = {0};  //客户端初始化
 
 /* 全局连接状态，供 ui_bridge 读取 */
 volatile int g_mqtt_connected = 0;
 
 /**********************
- *  FORWARD DECLARATIONS
+ *  FORWARD DECLARATIONS（为了工程规范、统一风格、防止出现先调用后声明！）
  **********************/
 static int  sock_connect(const char *host, uint16_t port);
 static void sock_close(void);
@@ -122,7 +122,7 @@ static int  mqtt_dispatch_publish(const char *topic, size_t topic_len,
                                   const void *payload, size_t payload_len);
 
 /**********************
- *  套接字操作
+ *  socket套接字操作
  **********************/
 
 static int sock_connect(const char *host, uint16_t port)
@@ -139,7 +139,7 @@ static int sock_connect(const char *host, uint16_t port)
 
     /* 设为非阻塞（用于 mqtt_loop 中的非阻塞 recv）*/
     int flags = fcntl(fd, F_GETFL, 0);
-    fcntl(fd, F_SETFL, flags | O_NONBLOCK);
+    fcntl(fd, F_SETFL, flags | O_NONBLOCK);  //但是
 
     /* 禁用 Nagle 算法，减少小包延迟 */
     int opt = 1;
@@ -227,7 +227,7 @@ static int sock_send_all(const uint8_t *data, size_t len)
     return 0;
 }
 
-/* 非阻塞读取（不等待完整长度，有多少读多少）*/
+/* 非阻塞读取recieve（不等待完整长度，有多少读多少）*/
 static int sock_recv_all(uint8_t *buf, size_t len, int timeout_ms)
 {
     (void)timeout_ms;
@@ -244,7 +244,9 @@ static int sock_recv_all(uint8_t *buf, size_t len, int timeout_ms)
  *  MQTT 报文编码/解码
  **********************/
 
-/* 剩余长度编码（MQTT v3.1.1 可变长度编码）*/
+/* 剩余长度编码（MQTT v3.1.1 可变长度编码）编码放进buf,返回实际用了bytes */
+/* MQTT 协议报文（Packet）中，固定头（Fixed Header）之后所有内容的字节数 */
+/* 从这个字节之后，你还需要再读 N 个字节，才算收到一个完整的 MQTT 报文 */
 static int mqtt_encode_remaining_length(uint8_t *buf, uint32_t length)
 {
     int bytes = 0;
@@ -252,12 +254,12 @@ static int mqtt_encode_remaining_length(uint8_t *buf, uint32_t length)
         uint8_t byte = length % 128;
         length /= 128;
         if (length > 0) byte |= 0x80;
-        buf[bytes++] = byte;
+        buf[bytes++] = byte;	//“剩余长度”的编码表达
     } while (length > 0);
     return bytes;
 }
 
-/* 剩余长度解码 */
+/* 剩余长度解码 -      剩余长度解析出来整数值value */
 static int mqtt_decode_remaining_length(const uint8_t *buf, uint32_t *value, int *bytes)
 {
     uint32_t val = 0;
@@ -266,7 +268,7 @@ static int mqtt_decode_remaining_length(const uint8_t *buf, uint32_t *value, int
 
     do {
         if (b >= 4) return -1;  /* 非法 */
-        val += (buf[b] & 0x7F) * multiplier;
+        val += (buf[b] & 0x7F) * multiplier;	//
         multiplier *= 128;
     } while (buf[b++] & 0x80);
 
@@ -275,17 +277,16 @@ static int mqtt_decode_remaining_length(const uint8_t *buf, uint32_t *value, int
     return 0;
 }
 
-/* 写入 16 位长度前缀（大端）*/
+/* 用于写入 16 位长度前缀头（大端）*/
 static inline void write_uint16(uint8_t *buf, uint16_t val)
 {
     buf[0] = (uint8_t)(val >> 8);
     buf[1] = (uint8_t)(val & 0xFF);
 }
 
-/**********************
- *  MQTT CONNECT
- **********************/
-
+/************************************************************
+ *  组装并发送 CONNECT 报文（协议名 "MQTT" + 版本 + Client ID）
+ ************************************************************/
 static int mqtt_send_connect(void)
 {
     uint8_t buf[256];
@@ -317,7 +318,7 @@ static int mqtt_send_connect(void)
     /* 固定头：类型 */
     packet[pkt_pos++] = MQTT_TYPE_CONNECT;
 
-    /* 剩余长度 */
+    /* MQTT剩余长度 编码到packet */
     uint32_t remaining = pos;
     int rl_bytes = mqtt_encode_remaining_length(packet + pkt_pos, remaining);
     pkt_pos += rl_bytes;
@@ -332,13 +333,14 @@ static int mqtt_send_connect(void)
     return sock_send_all(packet, pkt_pos);
 }
 
+/* 阻塞等待并解析 CONNACK，检查 Broker 是否接受连接（返回码 0=成功） */
 static int mqtt_recv_connack(void)
 {
     uint8_t buf[4];
     int n;
 
-    /* 读固定头（2 字节：类型+剩余长度）*/
-    n = (int)recv(g_mqtt.sock_fd, buf, 2, MSG_WAITALL);
+    /* 读固定头（2 字节：拿出类型 + decode剩余长度）*/
+    n = (int)recv(g_mqtt.sock_fd, buf, 2, MSG_WAITALL);	//等待接收2字节的内容（类型）再返回
     if (n != 2) return -1;
 
     uint32_t remaining;
@@ -361,38 +363,39 @@ static int mqtt_recv_connack(void)
 }
 
 /**********************
- *  MQTT PINGREQ
+ *  发送心跳包（PINGREQ），保持 MQTT 长连接不被 Broker（服务器） 踢掉
  **********************/
 
 static int mqtt_send_pingreq(void)
 {
-    uint8_t packet[2] = {MQTT_TYPE_PINGREQ, 0x00};
+    uint8_t packet[2] = {MQTT_TYPE_PINGREQ, 0x00};//心跳包
     printf("[MQTT] → PINGREQ\n");
-    return sock_send_all(packet, 2);
+    return sock_send_all(packet, 2);	//发送全部字节（心跳包）	
 }
 
 /**********************
- *  MQTT 报文分发
+ *  MQTT 报文分发（遍历订阅者列表，按 Topic 前缀匹配，命中则调用对应的回调函数）
  **********************/
 
 static int mqtt_dispatch_publish(const char *topic, size_t topic_len,
                                   const void *payload, size_t payload_len)
 {
     for (int i = 0; i < g_mqtt.sub_count; i++) {
-        mqtt_subscriber_t *sub = &g_mqtt.subscribers[i];
+        mqtt_subscriber_t *sub = &g_mqtt.subscribers[i];	//订阅者列表放进来
         if (!sub->active) continue;
 
         /* 简单前缀匹配（不支持通配符 +/#）*/
         if (topic_len >= sub->topic_len &&
-            memcmp(topic, sub->topic, sub->topic_len) == 0) {
+            memcmp(topic, sub->topic, sub->topic_len) == 0) {	//topic相同的话：
             if (sub->cb) {
-                sub->cb(topic, topic_len, payload, payload_len, sub->user_data);
+                sub->cb(topic, topic_len, payload, payload_len, sub->user_data)  //调用订阅者的回调
             }
         }
     }
     return 0;
 }
 
+//广播 （解析 PUBLISH 报文，从字节流中提取 Topic 和 Payload，然后调用分发函数）
 static int mqtt_handle_publish(uint8_t *buf, size_t len)
 {
     (void)len;
@@ -431,6 +434,7 @@ static int mqtt_handle_publish(uint8_t *buf, size_t len)
     return 0;
 }
 
+//订阅者确认（解析 SUBACK 报文，打印服务器返回的订阅确认码（调试用））
 static int mqtt_handle_suback(uint8_t *buf, size_t len)
 {
     (void)len;
@@ -452,11 +456,11 @@ static int mqtt_handle_suback(uint8_t *buf, size_t len)
 /**********************
  *  公共 API 实现
  **********************/
-
-int mqtt_init(const char *host, uint16_t port, const char *client_id)
+/* MQTT员工准备就绪 */
+int mqtt_init(const char *host, uint16_t port, const char *client_id)//服务器ip+端口号
 {
     memset(&g_mqtt, 0, sizeof(g_mqtt));
-
+	/* 设置服务器ip+端口号和标志 */
     strncpy(g_mqtt.host, host, sizeof(g_mqtt.host) - 1);
     g_mqtt.port = port;
     strncpy(g_mqtt.client_id, client_id, sizeof(g_mqtt.client_id) - 1);
@@ -471,6 +475,7 @@ int mqtt_init(const char *host, uint16_t port, const char *client_id)
     return 0;
 }
 
+/* 退出 断联+重置客户端 */
 void mqtt_exit(void)
 {
     mqtt_disconnect();
@@ -479,6 +484,7 @@ void mqtt_exit(void)
     printf("[MQTT] 已退出\n");
 }
 
+/* TCP通了，MQTT身份认证通过 */
 int mqtt_connect(void)
 {
     if (g_mqtt.state == MQTT_STATE_CONNECTED) return 0;
@@ -493,14 +499,14 @@ int mqtt_connect(void)
     }
     g_mqtt.sock_fd = fd;
 
-    /* 2. 发送 CONNECT */
+    /* 2. mqtt发送 CONNECT */
     if (mqtt_send_connect() < 0) {
         sock_close();
         g_mqtt.state = MQTT_STATE_DISCONNECTED;
         return -1;
     }
 
-    /* 3. 等待 CONNACK */
+    /* 3. 等待 CONNACK确认 */
     if (mqtt_recv_connack() < 0) {
         sock_close();
         g_mqtt.state = MQTT_STATE_DISCONNECTED;
@@ -520,7 +526,7 @@ void mqtt_disconnect(void)
 {
     if (g_mqtt.state == MQTT_STATE_DISCONNECTED) return;
 
-    /* 发送 DISCONNECT 报文 */
+    /* 发送 DISCONNECT 报文，更新状态 */
     uint8_t packet[2] = {MQTT_TYPE_DISCONNECT, 0x00};
     sock_send_all(packet, 2);
 
@@ -536,6 +542,7 @@ mqtt_state_t mqtt_get_state(void)
     return g_mqtt.state;
 }
 
+/* 作为发布者向某个topic发送一个数据：数据publish上传成功 */
 int mqtt_publish(const char *topic, const void *payload,
                  size_t payload_len, uint8_t qos, bool retain)
 {
@@ -578,6 +585,7 @@ int mqtt_publish(const char *topic, const void *payload,
     return ret;
 }
 
+/* 对“topic”感兴趣，作为订阅者，设备进入接收服务器推送来的消息的状态 */
 int mqtt_subscribe(const char *topic, uint8_t qos,
                    mqtt_publish_cb_t cb, void *user_data)
 {
@@ -618,6 +626,7 @@ int mqtt_subscribe(const char *topic, uint8_t qos,
     return sock_send_all(packet, pos);
 }
 
+/* MQTT客户端动作, 在主线程中被循环调用 */
 int mqtt_loop(void)
 {
     if (g_mqtt.state != MQTT_STATE_CONNECTED) {
@@ -634,7 +643,7 @@ int mqtt_loop(void)
 
     /* 1. 非阻塞接收数据 */
     int n = sock_recv_all(g_mqtt.recv_buf + g_mqtt.recv_len,
-                          MQTT_RECV_BUF_SIZE - g_mqtt.recv_len, 0);
+                          MQTT_RECV_BUF_SIZE - g_mqtt.recv_len, 0);	//用封装好的
     if (n > 0) {
         g_mqtt.recv_len += n;
 
@@ -654,10 +663,10 @@ int mqtt_loop(void)
             /* 按类型处理 */
             switch (type & 0xF0) {
             case MQTT_TYPE_PUBLISH:
-                mqtt_handle_publish(g_mqtt.recv_buf, pkt_len);
+                mqtt_handle_publish(g_mqtt.recv_buf, pkt_len);	//封装好的，广播分发内容（Topic 和 Payload）
                 break;
             case MQTT_TYPE_SUBACK:
-                mqtt_handle_suback(g_mqtt.recv_buf, pkt_len);
+                mqtt_handle_suback(g_mqtt.recv_buf, pkt_len);	//封装好的，服务器给的订阅确认
                 break;
             case MQTT_TYPE_PINGRESP:
                 printf("[MQTT] ← PINGRESP\n");
@@ -682,7 +691,7 @@ int mqtt_loop(void)
         /* 连接断开 */
         printf("[MQTT] 连接断开\n");
         sock_close();
-        g_mqtt.state  = MQTT_STATE_DISCONNECTED;
+        g_mqtt.state  = MQTT_STATE_DISCONNECTED;	//更新状态
         g_mqtt_connected = 0;
         return -1;
     }
@@ -690,7 +699,7 @@ int mqtt_loop(void)
     /* 2. 心跳检查（每隔 keepalive/2 秒发送 PINGREQ）*/
     time_t now = time(NULL);
     if (now - g_mqtt.last_send >= MQTT_DEFAULT_KEEPALIVE / 2) {
-        mqtt_send_pingreq();
+        mqtt_send_pingreq();		//封装好的
     }
 
     return 0;
