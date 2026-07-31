@@ -4,7 +4,7 @@
 > 目标平台：ARM Cortex-A (i.MX6ULL / STM32MP157)
 > 技术栈：Modern C++ (C++17/20) + SocketCAN + 嵌入式 Linux
 > 构建工具：CMake + 交叉编译链
-
+> 目标时间：2026-09
 ---
 
 ## 一、项目背景与市场定位
