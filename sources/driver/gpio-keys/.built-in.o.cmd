@@ -1,1 +1,0 @@
-cmd_/home/lalakala/imx6ull-camera-terminal/sources/driver/gpio-keys/built-in.o :=  rm -f /home/lalakala/imx6ull-camera-terminal/sources/driver/gpio-keys/built-in.o; arm-linux-gnueabihf-ar rcsD /home/lalakala/imx6ull-camera-terminal/sources/driver/gpio-keys/built-in.o

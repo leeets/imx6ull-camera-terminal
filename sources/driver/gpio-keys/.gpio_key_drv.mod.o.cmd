@@ -1,4 +1,4 @@
-cmd_/home/lalakala/imx6ull-camera-terminal/sources/driver/gpio-keys/gpio_key_drv.mod.o := arm-linux-gnueabihf-gcc -Wp,-MD,/home/lalakala/imx6ull-camera-terminal/sources/driver/gpio-keys/.gpio_key_drv.mod.o.d -nostdinc -isystem /home/lalakala/100ask_imx6ull-sdk/ToolChain/gcc-linaro-6.2.1-2016.11-x86_64_arm-linux-gnueabihf/bin/../lib/gcc/arm-linux-gnueabihf/6.2.1/include -I./arch/arm/include -I./arch/arm/include/generated/uapi -I./arch/arm/include/generated  -I./include -I./arch/arm/include/uapi -I./include/uapi -I./include/generated/uapi -include ./include/linux/kconfig.h -D__KERNEL__ -mlittle-endian -Wall -Wundef -Wstrict-prototypes -Wno-trigraphs -fno-strict-aliasing -fno-common -Werror-implicit-function-declaration -Wno-format-security -std=gnu89 -fno-PIE -fno-dwarf2-cfi-asm -fno-ipa-sra -mabi=aapcs-linux -mno-thumb-interwork -mfpu=vfp -funwind-tables -marm -D__LINUX_ARM_ARCH__=7 -march=armv7-a -msoft-float -Uarm -fno-delete-null-pointer-checks -Wno-frame-address -O2 --param=allow-store-data-races=0 -DCC_HAVE_ASM_GOTO -Wframe-larger-than=1024 -fno-stack-protector -Wno-unused-but-set-variable -Wno-unused-const-variable -fomit-frame-pointer -fno-var-tracking-assignments -Wdeclaration-after-statement -Wno-pointer-sign -fno-strict-overflow -fno-stack-check -fconserve-stack -Werror=implicit-int -Werror=strict-prototypes -Werror=date-time -Werror=incompatible-pointer-types  -DKBUILD_BASENAME='"gpio_key_drv.mod"'  -DKBUILD_MODNAME='"gpio_key_drv"' -DMODULE  -c -o /home/lalakala/imx6ull-camera-terminal/sources/driver/gpio-keys/gpio_key_drv.mod.o /home/lalakala/imx6ull-camera-terminal/sources/driver/gpio-keys/gpio_key_drv.mod.c
+cmd_/home/lalakala/imx6ull-camera-terminal/sources/driver/gpio-keys/gpio_key_drv.mod.o := /home/lalakala/100ask_imx6ull-sdk/ToolChain/arm-buildroot-linux-gnueabihf_sdk-buildroot/bin/arm-buildroot-linux-gnueabihf-gcc -Wp,-MD,/home/lalakala/imx6ull-camera-terminal/sources/driver/gpio-keys/.gpio_key_drv.mod.o.d  -nostdinc -isystem /home/lalakala/100ask_imx6ull-sdk/ToolChain/arm-buildroot-linux-gnueabihf_sdk-buildroot/bin/../lib/gcc/arm-buildroot-linux-gnueabihf/7.5.0/include -I./arch/arm/include -I./arch/arm/include/generated/uapi -I./arch/arm/include/generated  -I./include -I./arch/arm/include/uapi -I./include/uapi -I./include/generated/uapi -include ./include/linux/kconfig.h -D__KERNEL__ -mlittle-endian -Wall -Wundef -Wstrict-prototypes -Wno-trigraphs -fno-strict-aliasing -fno-common -Werror-implicit-function-declaration -Wno-format-security -std=gnu89 -fno-PIE -fno-dwarf2-cfi-asm -fno-omit-frame-pointer -mapcs -mno-sched-prolog -fno-ipa-sra -mabi=aapcs-linux -mno-thumb-interwork -mfpu=vfp -funwind-tables -marm -D__LINUX_ARM_ARCH__=7 -march=armv7-a -msoft-float -Uarm -fno-delete-null-pointer-checks -Wno-frame-address -Wno-format-truncation -Wno-format-overflow -Wno-int-in-bool-context -O2 --param=allow-store-data-races=0 -DCC_HAVE_ASM_GOTO -Wframe-larger-than=1024 -fno-stack-protector -Wno-unused-but-set-variable -Wno-unused-const-variable -fno-omit-frame-pointer -fno-optimize-sibling-calls -fno-var-tracking-assignments -pg -Wdeclaration-after-statement -Wno-pointer-sign -fno-strict-overflow -fno-stack-check -fconserve-stack -Werror=implicit-int -Werror=strict-prototypes -Werror=date-time -Werror=incompatible-pointer-types  -DKBUILD_BASENAME='"gpio_key_drv.mod"'  -DKBUILD_MODNAME='"gpio_key_drv"' -DMODULE  -c -o /home/lalakala/imx6ull-camera-terminal/sources/driver/gpio-keys/gpio_key_drv.mod.o /home/lalakala/imx6ull-camera-terminal/sources/driver/gpio-keys/gpio_key_drv.mod.c
 
 source_/home/lalakala/imx6ull-camera-terminal/sources/driver/gpio-keys/gpio_key_drv.mod.o := /home/lalakala/imx6ull-camera-terminal/sources/driver/gpio-keys/gpio_key_drv.mod.c
 
@@ -64,7 +64,7 @@ deps_/home/lalakala/imx6ull-camera-terminal/sources/driver/gpio-keys/gpio_key_dr
     $(wildcard include/config/mmu.h) \
     $(wildcard include/config/prove/locking.h) \
     $(wildcard include/config/panic/timeout.h) \
-  /home/lalakala/100ask_imx6ull-sdk/ToolChain/gcc-linaro-6.2.1-2016.11-x86_64_arm-linux-gnueabihf/lib/gcc/arm-linux-gnueabihf/6.2.1/include/stdarg.h \
+  /home/lalakala/100ask_imx6ull-sdk/ToolChain/arm-buildroot-linux-gnueabihf_sdk-buildroot/lib/gcc/arm-buildroot-linux-gnueabihf/7.5.0/include/stdarg.h \
   include/linux/linkage.h \
   include/linux/stringify.h \
   include/linux/export.h \
@@ -133,6 +133,8 @@ deps_/home/lalakala/imx6ull-camera-terminal/sources/driver/gpio-keys/gpio_key_dr
   arch/arm/include/asm/cache.h \
     $(wildcard include/config/arm/l1/cache/shift.h) \
     $(wildcard include/config/aeabi.h) \
+  include/linux/dynamic_debug.h \
+    $(wildcard include/config/jump/label.h) \
   arch/arm/include/asm/div64.h \
   arch/arm/include/asm/compiler.h \
   include/asm-generic/div64.h \
@@ -434,7 +436,6 @@ deps_/home/lalakala/imx6ull-camera-terminal/sources/driver/gpio-keys/gpio_key_dr
     $(wildcard include/config/ia64.h) \
     $(wildcard include/config/ppc64.h) \
   include/linux/jump_label.h \
-    $(wildcard include/config/jump/label.h) \
   include/linux/extable.h \
   include/linux/rbtree_latch.h \
   arch/arm/include/asm/module.h \

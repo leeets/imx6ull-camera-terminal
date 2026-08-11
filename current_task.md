@@ -187,3 +187,54 @@ sources/
 6. **预览帧撕裂**：当前单缓冲模式，解码后的 RGB565 通过 memcpy 到 LVGL 缓冲区，偶有撕裂。如需防撕裂可加双缓冲
 7. **无网络模块**：MQTT/网络状态标签当前显示占位 "网络: --"，尚未集成网络协议栈
 8. **CAN 总线**：`can_new_project_design.md` 为设计文档，尚未实现
+
+---
+
+## 🔍 编译 + 上板差距盘点（2026-08-06 补充）
+
+**总体结论：目前还不能直接编译+上板。jpeglib（libjpeg）确实缺失，但不是唯一缺口 —— 还有顶层 Makefile 路径错误、4 处代码错误、以及上板运行环境（库文件/脚本）未准备。**
+
+### 1. jpeglib / libjpeg 缺失（编译链路硬缺口，已实测）
+
+- `sources/app/modules/fb_display/video_convert.c:6` 包含 `<jpeglib.h>`，Makefile 链接 `-ljpeg`。
+- 工具链 sysroot（`ToolChain/gcc-linaro-6.2.1-2016.11-.../arm-linux-gnueabihf/libc/usr/{include,lib}`）内既无 `jpeglib.h` 也无 `libjpeg.*`；宿主机 `/usr/include` 同样没有；全盘未找到可用头文件/库。
+- 实际执行 `make apps`，链接阶段报 `ld: cannot find -ljpeg`。
+- 源码包已就位但未构建：`/home/lalakala/100ask_imx6ull-sdk/Buildroot_2020.02.x/dl/jpeg-turbo/libjpeg-turbo-2.0.4.tar.gz` + `package/jpeg-turbo`，Buildroot 从未跑过（无 `output/` 目录）。需要交叉编译 libjpeg-turbo 并安装进 sysroot（含 `jpeglib.h`、`libjpeg.so/.a`），上板时还要把 `libjpeg.so.x` 一起拷到板端。
+- 补充：本项目只用到 JPEG **解码**（MJPEG→RGB565，`jpeg_mem_src` 属 libjpeg-turbo API）；拍照/录像都是把摄像头直接输出的 MJPEG 帧落盘，**不需要 JPEG 编码**。
+- 替代方案：仓库里已有 `fb_display/tjpgd.c`（Tiny JPEG 解码器，纯 C 零依赖），可替换 libjpeg 直接免掉该外部依赖。
+
+### 2. 顶层 Makefile 路径错误（编译第一步就卡在这）
+
+- `APP_DIR := app`、`DRV_DIR := driver` 等路径全部少了 `sources/` 前缀。
+- 从项目根目录 `make apps`：`$(wildcard app/...)` 全部为空 → 0 个 .o，直接执行空链接并报 `-ljpeg`；`make drivers` 同样找不到 `driver/` 目录。
+- 修复：Makefile 内路径统一加 `sources/` 前缀（临时绕过可 `cd sources && make -f ../Makefile apps`，但应修 Makefile）。
+
+### 3. 修完依赖后仍会编译失败的代码问题（已逐个实测）
+
+| 文件位置 | 问题 |
+| --- | --- |
+| `sources/app/ui/app/ui_events.h:14` | `#include "../ui.h"` 路径错误，应为 `"ui.h"`（同目录）。导致 ui.c、screens/*.c、ui_helpers.c、ui_events.c、ui_bridge.c 全部 fatal error |
+| `sources/app/common/hal/hal_camera.c:30` | 行尾多出游离 token：`fmt.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;pixelformat` |
+| `sources/app/modules/mqtt_client/mqtt_client.c:418` | `sub->cb(...)` 调用后缺分号 |
+| 顶层 Makefile CFLAGS | 缺 `-I$(MOD_DIR)/mqtt_client`，`ui_bridge.c` 的 `#include "mqtt_client.h"` 找不到头 |
+| `sources/app/main/ui_bridge.c:113` | `refresh_status_labels()` 缺函数收尾 `}`（全文件 `{` 28 个 / `}` 27 个），后续函数被解析成 GNU 嵌套函数，能编过但必须补上 |
+
+### 4. 上板运行环境缺口
+
+- `build/` 不存在：应用层从未成功编译过（仅 `sources/driver/gpio-keys/gpio_key_drv.ko` 是 2026-07-07 编译的旧产物）。
+- `rootfs_overlay/`、`scripts/`、`tools/` 全部为空：没有 libjpeg.so.x、没有 insmod/启动脚本、没有 udev 规则、没有部署/烧写脚本。
+- 上板最小动作：交叉编译出 `camera_terminal` → 连同 `libjpeg.so.x`、`gpio_key_drv.ko` 拷到板端 → insmod → 确认 `/dev/video1`、`/dev/input/event0`、SD 卡挂载点 `/mnt/sd` 存在后运行。
+
+### 5. 文档与现状不一致的地方（顺带发现）
+
+- MQTT：`mqtt_client.c/h` 已实现（733 行）并集成进 main.c（`mqtt_init`/`mqtt_connect`/`mqtt_loop`），ui_bridge 已在读 `g_mqtt_connected`。本文件“已知问题”第 7 条“无网络模块”已过期。
+- 触摸屏：main.c 实际用 `/dev/input/event0`，本文件第 5 条写的 event1 已过期。
+- 相册 JPEG 预览：`ui_bridge.c` 用 `lv_img_set_src(ui_imgPhotoPreview, 文件路径)` 直接加载 JPEG，但 lv_conf.h 中 `LV_USE_FS_STDIO/POSIX` 均为 0，也未开 `LV_USE_SJPG` —— LVGL 8.3 没有可用的 JPEG 文件解码链路，相册预览上板后大概率不显示。需要接解码（仓库自带 sjpg/tjpgd）或读文件解码后转 `lv_img_dsc_t` 再上板验证。
+
+### 6. 建议的最小修复顺序
+
+1. Makefile：路径加 `sources/` 前缀 + CFLAGS 补 mqtt_client 的 include 目录。
+2. jpeglib：交叉编译 libjpeg-turbo 2.0.4 装进 sysroot（或改接 tjpgd.c 去掉 `-ljpeg`）。
+3. 修 4 处代码错误：ui_events.h include、hal_camera.c、mqtt_client.c、ui_bridge.c 大括号。
+4. 准备上板环境：libjpeg.so.x、驱动 insmod、部署脚本。
+5. 相册预览接 JPEG 解码后再上板验证。

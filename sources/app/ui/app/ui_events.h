@@ -11,7 +11,7 @@ extern "C" {
 #endif
 
 #include "lvgl/lvgl.h"
-#include "../ui.h"
+#include "ui.h"
 
 // 相册按钮事件
 void on_btnAlbum_clicked(lv_event_t * e);

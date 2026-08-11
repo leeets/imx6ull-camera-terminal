@@ -42,9 +42,9 @@ LVGL_CORE   := $(wildcard $(LVGL_DIR)/src/core/*.c)
 LVGL_DRAW   := $(wildcard $(LVGL_DIR)/src/draw/*.c)
 LVGL_DRAWSW := $(wildcard $(LVGL_DIR)/src/draw/sw/*.c)
 LVGL_EXTRA  := $(wildcard $(LVGL_DIR)/src/extra/*.c)
-LVGL_EXTLAY := $(wildcard $(LVGL_DIR)/src/extra/layouts/*.c)
-LVGL_EXTHME := $(wildcard $(LVGL_DIR)/src/extra/themes/*.c)
-LVGL_EXTWGT := $(wildcard $(LVGL_DIR)/src/extra/widgets/*.c)
+LVGL_EXTLAY := $(wildcard $(LVGL_DIR)/src/extra/layouts/*/*.c)
+LVGL_EXTHME := $(wildcard $(LVGL_DIR)/src/extra/themes/*/*.c)
+LVGL_EXTWGT := $(wildcard $(LVGL_DIR)/src/extra/widgets/*/*.c)
 LVGL_FONT   := $(wildcard $(LVGL_DIR)/src/font/*.c)
 LVGL_HAL    := $(wildcard $(LVGL_DIR)/src/hal/*.c)
 LVGL_MISC   := $(wildcard $(LVGL_DIR)/src/misc/*.c)
@@ -63,12 +63,14 @@ APP_SRCS    := $(HAL_SRCS) $(MOD_SRCS) $(MAIN_SRCS) $(LVGL_SRC) $(UI_APP_SRCS) $
 # ---- 编译器标志 ----
 CFLAGS      := -Wall \
 	-I$(HAL_DIR) \
+	-I$(MAIN_DIR) \
 	-I$(MOD_DIR)/key_manager \
 	-I$(MOD_DIR)/gps_daemon \
 	-I$(MOD_DIR)/camera_capture \
 	-I$(MOD_DIR)/fb_display \
 	-I$(MOD_DIR)/recorder \
 	-I$(MOD_DIR)/storage_manager \
+	-I$(MOD_DIR)/mqtt_client \
 	-I$(APP_DIR)/common/ipc -I$(APP_DIR)/common/utils -I$(UI_DIR) -I$(LVGL_DIR) -I$(PORT_DIR) -I$(UI_DIR)/app
 LDFLAGS     := -lpthread -lrt -ljpeg -lm
 
@@ -120,18 +122,6 @@ $(APP_TARGET): $(APP_OBJS)
 	$(CC) -o $@ $^ $(LDFLAGS)
 	@echo "=== 应用编译完成: $@ ==="
 
-#==============================================================================
-# 3. 单独编译按键测试程序
-#==============================================================================
-.PHONY: button_test
-button_test:
-	@mkdir -p $(OUTPUT_DIR)
-	$(CC) $(CFLAGS) -I$(HAL_DIR) -I$(MOD_DIR) \
-		-o $(OUTPUT_DIR)/button_test \
-		$(HAL_DIR)/hal_key.c \
-		$(MOD_DIR)/key_manager/key_manager.c \
-		$(MOD_DIR)/key_manager/button_test.c
-	@echo "=== 测试程序编译完成: $(OUTPUT_DIR)/button_test ==="
 
 #==============================================================================
 # 5. 清理
