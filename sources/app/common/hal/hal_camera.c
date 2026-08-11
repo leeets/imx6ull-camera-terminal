@@ -27,8 +27,8 @@ static void                 *g_frame_ctx = NULL;
 static void dump_formats(int fd) {
     struct v4l2_fmtdesc fmt;
     memset(&fmt, 0, sizeof(fmt));
-    fmt.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;pixelformat
-    while (ioctl(fd, VIDIOC_ENUM_FMT, &fmt) == 0) {//枚举出来所有格式pixelformat
+    fmt.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+    while (ioctl(fd, VIDIOC_ENUM_FMT, &fmt) == 0) {//枚举出来所有格式
         printf("[HAL_CAM]   format #%d: %.4s  %s\n",
                fmt.index, (char*)&fmt.pixelformat, fmt.description);
         fmt.index++;

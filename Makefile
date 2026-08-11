@@ -6,15 +6,15 @@
 
 # ---- 路径配置（按实际环境修改）----
 KERN_DIR    := /home/lalakala/100ask_imx6ull-sdk/Linux-4.9.88
-TOOLCHAIN   := /home/lalakala/100ask_imx6ull-sdk/ToolChain/gcc-linaro-6.2.1-2016.11-x86_64_arm-linux-gnueabihf
-CROSS_COMPILE := $(TOOLCHAIN)/bin/arm-linux-gnueabihf-
+TOOLCHAIN    := /home/lalakala/100ask_imx6ull-sdk/ToolChain/arm-buildroot-linux-gnueabihf_sdk-buildroot
+CROSS_COMPILE := $(TOOLCHAIN)/bin/arm-buildroot-linux-gnueabihf-
 CC          := $(CROSS_COMPILE)gcc
 LD          := $(CROSS_COMPILE)ld
 ARCH        := arm
 
 # ---- 源码目录 ----
-DRV_DIR     := driver
-APP_DIR     := app
+DRV_DIR     := sources/driver
+APP_DIR     := sources/app
 HAL_DIR     := $(APP_DIR)/common/hal
 MOD_DIR     := $(APP_DIR)/modules
 MAIN_DIR    := $(APP_DIR)/main
