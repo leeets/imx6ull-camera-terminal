@@ -90,7 +90,7 @@ APP_OBJS    += $(patsubst $(UI_DIR)/app/screens/%.c, $(BUILD_DIR)/$(UI_DIR)/app/
 APP_OBJS    += $(patsubst $(UI_DIR)/app/components/%.c, $(BUILD_DIR)/$(UI_DIR)/app/components/%.o, $(wildcard $(UI_DIR)/app/components/*.c))
 APP_OBJS    += $(patsubst $(PORT_DIR)/%.c, $(BUILD_DIR)/$(PORT_DIR)/%.o, $(PORT_SRCS))
 APP_OBJS    += $(patsubst $(MAIN_DIR)/ui_bridge.c, $(BUILD_DIR)/$(MAIN_DIR)/ui_bridge.o, $(wildcard $(MAIN_DIR)/ui_bridge.c))
-
+APP_OBJS    += $(patsubst $(MOD_DIR)/mqtt_client/%.c, $(BUILD_DIR)/$(MOD_DIR)/mqtt_client/%.o, $(wildcard $(MOD_DIR)/mqtt_client/*.c))
 
 
 # ---- 默认目标 ----

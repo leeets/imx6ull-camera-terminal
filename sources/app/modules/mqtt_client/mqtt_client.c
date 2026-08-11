@@ -415,7 +415,7 @@ static int mqtt_dispatch_publish(const char *topic, size_t topic_len,
         if (topic_len >= sub->topic_len &&
             memcmp(topic, sub->topic, sub->topic_len) == 0) {	//topic相同的话：
             if (sub->cb) {
-                sub->cb(topic, topic_len, payload, payload_len, sub->user_data)  //调用这个订阅者的回调
+                sub->cb(topic, topic_len, payload, payload_len, sub->user_data);  //调用这个订阅者的回调
             }
         }
     }
