@@ -11,17 +11,17 @@
 #include <stdint.h>
 
 /* 颜色深度: imx6ull fb 为 RGB565 */
-#define LV_COLOR_DEPTH 16
+#define LV_COLOR_DEPTH 32
 
 /* 交换 R/G 通道: imx6ull 无此需求 */
 #define LV_COLOR_16_SWAP 0
 
 /* 屏幕分辨率 */
-#define LV_HOR_RES_MAX 800
-#define LV_VER_RES_MAX 480
+#define LV_HOR_RES_MAX 1024
+#define LV_VER_RES_MAX 600
 
 /* LVGL 堆大小: 至少 64KB，有双缓冲时需要更多 */
-#define LV_MEM_SIZE (64 * 1024U)
+#define LV_MEM_SIZE (256 * 1024U)
 
 /* 显示刷新周期 (ms): 调低以节省 CPU */
 #define LV_DISP_DEF_REFR_PERIOD 50

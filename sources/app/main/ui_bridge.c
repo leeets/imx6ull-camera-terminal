@@ -134,7 +134,7 @@ static void async_update_preview(void *user_data)
     }
 
     /* 数据已在回调触发前拷贝到 g_preview_buf，直接使用 */
-    lv_img_dsc_t img_dsc;
+    static lv_img_dsc_t img_dsc;
     memset(&img_dsc, 0, sizeof(img_dsc));
     img_dsc.header.always_zero = 0;
     img_dsc.header.w = PREVIEW_W;

@@ -109,6 +109,7 @@ static void *capture_thread_func(void *arg) {
     struct v4l2_buffer buf;
 
     while (g_streaming) {
+        unsigned int idx = buf.index;
         fd_set fds;
         FD_ZERO(&fds); FD_SET(g_fd, &fds);
         struct timeval tv = {2, 0};
@@ -130,7 +131,7 @@ static void *capture_thread_func(void *arg) {
         memset(&buf, 0, sizeof(buf));
         buf.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
         buf.memory = V4L2_MEMORY_MMAP;
-        buf.index = buf.index;
+        buf.index = idx;
 		//VIDIOC_QBUF 把缓冲区重新入队 g_streaming = 0 时退出循环。
         if (ioctl(g_fd, VIDIOC_QBUF, &buf) < 0) { perror("[HAL_CAM] QBUF post"); break; }
     }

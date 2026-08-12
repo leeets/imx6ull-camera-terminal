@@ -66,9 +66,9 @@ int hal_fb_draw_rgb565(const void *rgb, int w, int h) {
     copy_h = (h > screen_h) ? screen_h : h;
 
     for (y = 0; y < copy_h; y++) {
-        memcpy(g_fb_base + (offset_y + y) * dst_stride + offset_x * 2,
+        memcpy(g_fb_base + (offset_y + y) * dst_stride + offset_x * 4,
                (const unsigned char *)rgb + y * src_stride,
-               copy_w * 2);
+               copy_w * 4);
     }		//逐个位置内存拷贝memcpy，实现屏幕显示一整个数据
     return 0;
 }
