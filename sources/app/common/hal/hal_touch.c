@@ -15,9 +15,7 @@
 #include <errno.h>
 #include <linux/input.h>
 
-/* 文件顶部静态变量区加 */
-static int g_abs_x_min = 0, g_abs_x_max = 32767;
-static int g_abs_y_min = 0, g_abs_y_max = 32767;
+static hal_touch_action_t g_pending = HAL_TOUCH_NONE;   /* 缓存按下/抬起，等 SYN 带坐标一起上报 */
 
 /* 私有全局变量 */
 static int g_touch_fd = -1;
@@ -44,20 +42,12 @@ int hal_touch_init(const char *dev_path)
         return -1;
     }
     printf("[HAL_TOUCH] 已打开 %s (fd=%d)\n", dev_path, g_touch_fd);
-    /*Open成功后加入：*/
-    struct input_absinfo ai;
-    if (ioctl(g_touch_fd, EVIOCGABS(ABS_MT_POSITION_X), &ai) == 0) {
-        g_abs_x_min = ai.minimum; g_abs_x_max = ai.maximum;
-    }
-    if (ioctl(g_touch_fd, EVIOCGABS(ABS_MT_POSITION_Y), &ai) == 0) {
-        g_abs_y_min = ai.minimum; g_abs_y_max = ai.maximum;
-    }
-    printf("[HAL_TOUCH] abs x[%d,%d] y[%d,%d]\n", g_abs_x_min, g_abs_x_max, g_abs_y_min, g_abs_y_max);
 
     return 0;
 }
 
-//读一次事件，之后被lv_port_indev集成调用，来读取触摸
+/*读一次事件，之后被lv_port_indev集成调用，来读取触摸*/
+/* 修改：核心：动作只在 EV_SYN同步事件 输出,保证动作和坐标永远同帧 */
 int hal_touch_read(hal_touch_event_t *out)
 {
     struct input_event ev;//临时 读事件值（所有的输入设备都是这样的数据格式，Linux input 子系统的核心设计）
@@ -89,33 +79,25 @@ int hal_touch_read(hal_touch_event_t *out)
       case ABS_X:
       case ABS_MT_POSITION_X:
       {
-          int range = g_abs_x_max - g_abs_x_min;
-          if (range <= 0) range = 1;
-          int v = (ev.value - g_abs_x_min) * g_screen_width / range;
-          if (v < 0) v = 0;
-          if (v >= (int)g_screen_width) v = g_screen_width - 1;
-          g_last_x = (uint16_t)v;
-          break;
+        g_last_x = (uint16_t)ev.value;
+        if (g_last_x >= g_screen_width) g_last_x = g_screen_width - 1;
+        break;   
       }
       case ABS_Y:
       case ABS_MT_POSITION_Y:
       {
-          int range = g_abs_y_max - g_abs_y_min;
-          if (range <= 0) range = 1;
-          int v = (ev.value - g_abs_y_min) * g_screen_height / range;
-          if (v < 0) v = 0;
-          if (v >= (int)g_screen_height) v = g_screen_height - 1;
-          g_last_y = (uint16_t)v;
+          g_last_y = (uint16_t)ev.value;
+          if (g_last_y >= g_screen_height) g_last_y = g_screen_height - 1;
           break;
       }
       case ABS_MT_TRACKING_ID:
-          /* 协议B：>=0 按下，<0 抬起 */
+          /* 只更新状态，动作缓存到 g_pending，等 SYN 再上报 */
           if (ev.value >= 0 && !touch_state) {
               touch_state = 1;
-              out->action = HAL_TOUCH_PRESS;
+              g_pending = HAL_TOUCH_PRESS;
           } else if (ev.value < 0 && touch_state) {
               touch_state = 0;
-              out->action = HAL_TOUCH_RELEASE;
+              g_pending = HAL_TOUCH_RELEASE;
           }
           break;
       case ABS_PRESSURE:
@@ -146,20 +128,20 @@ int hal_touch_read(hal_touch_event_t *out)
       break;
     /* 同步事件--标记一次完整事件的结束、批量传输优化 */
   case EV_SYN:
-      out->x = g_last_x;
-      out->y = g_last_y;
-      /* 手指按下且本帧没有按下/抬起事件，才算滑动 */
-      if (touch_state && out->action == HAL_TOUCH_NONE)
-          out->action = HAL_TOUCH_MOVE;
-      break;
+    /* 帧结束，坐标已更新，把缓存的动作和坐标一起上报 */
+    out->x = g_last_x;
+    out->y = g_last_y;
+    out->action = g_pending;
+    if (g_pending == HAL_TOUCH_NONE && touch_state)
+        out->action = HAL_TOUCH_MOVE;
+    g_pending = HAL_TOUCH_NONE;
+    break;
 
   default:
       return 0;
   }
-    out->x = g_last_x;
-    out->y = g_last_y;		//更新坐标
 
-    return (out->action != HAL_TOUCH_NONE) ? 1 : 0;//类型不是NONE就返回1
+  return (out->action != HAL_TOUCH_NONE) ? 1 : 0;//类型不是NONE就返回1
 }
 
 /*切换触摸屏的"读取模式" 阻塞与否*/

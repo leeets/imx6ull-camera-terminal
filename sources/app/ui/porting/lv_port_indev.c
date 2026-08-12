@@ -12,6 +12,7 @@
 #include "lv_port_indev.h"
 #include "lvgl/lvgl.h"
 #include "hal_touch.h"
+#include "ui.h" 
 
 /**********************
  *  STATIC VARIABLES
@@ -32,18 +33,27 @@ static void pointer_read(lv_indev_drv_t *drv, lv_indev_data_t *data)
     (void)drv;
 
     hal_touch_event_t ev;
+    static bool pressed = false;   /* 记住当前手指状态 */
     int ret = hal_touch_read(&ev);
 
     if (ret == 1) {
         printf("[TOUCH] x=%d y=%d action=%d\n", ev.x, ev.y, ev.action);
         data->point.x = ev.x;
         data->point.y = ev.y;
-        /* MOVE 也发生在手指按下期间，应保持 PRESSED */
-        data->state = (ev.action == HAL_TOUCH_RELEASE) ?
-                      LV_INDEV_STATE_RELEASED : LV_INDEV_STATE_PRESSED;
+        if (ev.action == HAL_TOUCH_PRESS) {
+            pressed = true;
+            data->state = LV_INDEV_STATE_PRESSED;
+        } else if (ev.action == HAL_TOUCH_RELEASE) {
+            pressed = false;
+            data->state = LV_INDEV_STATE_RELEASED;
+        } else { /* MOVE：手指仍按着 */
+            data->state = pressed ? LV_INDEV_STATE_PRESSED : LV_INDEV_STATE_RELEASED;
+        }
     } else {
-        data->state = LV_INDEV_STATE_RELEASED;
+        /* 无新事件：保持上次状态，不要让 LVGL 误以为松开了 */
+        data->state = pressed ? LV_INDEV_STATE_PRESSED : LV_INDEV_STATE_RELEASED;
     }
+
 }
 
 /**********************

@@ -63,6 +63,16 @@ static void async_update_preview(void *user_data);
  **********************/
 static void refresh_status_labels(void)
 {
+    /*  打印按钮矩形区域 */
+    static int dbg_once = 0;
+    if (!dbg_once) {
+    dbg_once = 1;
+    lv_area_t a;
+    lv_obj_get_coords(ui_BtnAlbum, &a);
+    printf("[DBG] BtnAlbum rect=(%d,%d)-(%d,%d) size=%dx%d\n",
+           a.x1, a.y1, a.x2, a.y2,
+           lv_obj_get_width(ui_BtnAlbum), lv_obj_get_height(ui_BtnAlbum));
+  }
     /* 1. GPS 状态 */
     if (gps_is_valid()) {
         gps_data_t gps;
@@ -109,7 +119,7 @@ static void refresh_status_labels(void)
     if (g_mqtt_connected) {
         lv_label_set_text(ui_LabelNet, "net: connected");
     } else {
-        lv_label_set_text(ui_LabelNet, "net: discon");
+        lv_label_set_text(ui_LabelNet, "net: disconnected");
     }
 }
 
@@ -276,7 +286,7 @@ void ui_bridge_init(void)
     lv_obj_add_event_cb(ui_btnPrev, on_btnPrev_clicked, LV_EVENT_CLICKED, NULL);
     lv_obj_add_event_cb(ui_btnNext, on_btnNext_clicked, LV_EVENT_CLICKED, NULL);
     lv_obj_add_event_cb(ui_btnDelete, on_btnDelete_clicked, LV_EVENT_CLICKED, NULL);
-
+    
     printf("[UI_BRIDGE] init: status timer created\n");
 }
 
