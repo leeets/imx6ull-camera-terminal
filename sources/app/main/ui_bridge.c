@@ -85,11 +85,11 @@ static void refresh_status_labels(void)
         if (storage_get_stats(&stats) == 0) {
             uint64_t used_mb = stats.total_bytes / (1024 * 1024);
             uint64_t cap_mb  = stats.capacity_bytes / (1024 * 1024);
-            snprintf(buf, sizeof(buf), "存储: %llu/%llu MB",
+            snprintf(buf, sizeof(buf), "storage: %llu/%llu MB",
                      (unsigned long long)used_mb,
                      (unsigned long long)cap_mb);
         } else {
-            snprintf(buf, sizeof(buf), "存储: --");
+            snprintf(buf, sizeof(buf), "storage: --");
         }
         lv_label_set_text(ui_LabelStorage, buf);
     }
@@ -98,9 +98,9 @@ static void refresh_status_labels(void)
     {
         const char *rec_text;
         if (recorder_get_state() == RECORDER_RECORDING)
-            rec_text = "录像: ● 录制中";
+            rec_text = "recorder: recording";
         else
-            rec_text = "录像: ○ 空闲";
+            rec_text = "recorder: idle";
         lv_label_set_text(ui_LabelRecStatus, rec_text);
     }
 
@@ -128,7 +128,7 @@ static void status_timer_cb(lv_timer_t *timer)
 static void async_update_preview(void *user_data)
 {
     (void)user_data;
-
+    printf("async_update_preview调用\n");
     if (!g_preview_img) {
         g_preview_img = ui_ImgPreview;
     }
@@ -144,6 +144,7 @@ static void async_update_preview(void *user_data)
     img_dsc.data = (const uint8_t *)g_preview_buf;
 
     lv_img_set_src(g_preview_img, &img_dsc);
+    printf("lv_img_set_src done\n");
     g_preview_pending = 0;
 }
 

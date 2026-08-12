@@ -61,7 +61,7 @@ static volatile int g_running = 1;
  */
 static void on_preview_frame(const hal_camera_frame_t *frame, void *user_data) {
     (void)user_data;
-
+    printf("预览帧操作开始\n");
     /* 静态缓冲区：避免每帧重复 malloc/free RGB565 缓冲区 */
     static void *rgb_buf = NULL;
     static int rgb_buf_size = 0;
@@ -75,9 +75,14 @@ static void on_preview_frame(const hal_camera_frame_t *frame, void *user_data) {
         rgb_buf_size = need;
         if (!rgb_buf) return;
     }
-
+     /* 如果正在录像，将 MJPEG 帧入队列到 recorder 队列（异步写 SD 卡）*/
+    if (recorder_get_state() == RECORDER_RECORDING) {
+       recorder_write_frame(frame->data, frame->length);
+    }
     /* MJPEG 解码转 RGB565 */
-    if (mjpeg_to_rgb565(frame->data, frame->length, rgb_buf, w, h) < 0) {
+    int ret = mjpeg_to_rgb565(frame->data, frame->length, rgb_buf, w, h);
+    printf("mjpeg_to_rgb565的返回值 = %d\n", ret);
+    if (ret < 0) {
         /* 解码失败，跳过此帧显示 */
         return;
     }
@@ -85,10 +90,6 @@ static void on_preview_frame(const hal_camera_frame_t *frame, void *user_data) {
     /* 通过 LVGL的ui_bridge 异步更新 LVGL 图像控件（采集线程 → 主线程 lv_async_call）*/
     ui_bridge_update_preview(rgb_buf);
 
-    /* 如果正在录像，将 MJPEG 帧入队列到 recorder 队列（异步写 SD 卡）*/
-    if (recorder_get_state() == RECORDER_RECORDING) {
-        recorder_write_frame(frame->data, frame->length);
-    }
 }
 
 /* 拍照回调 - capture_take_photo 完成后调用 */
@@ -239,6 +240,7 @@ int main(int argc, char **argv) {
     while (g_running) {
         key_manager_task();
         mqtt_loop();
+        lv_tick_inc(5);      // ← 喂 LVGL 系统时钟（每 5ms）
         lv_timer_handler();
         usleep(5000);
 

@@ -57,6 +57,7 @@ static void preview_bridge(const hal_camera_frame_t *frame, void *user_data) {
     /* 用entry拷贝 MJPEG 帧数据（frame就是帧数据结构体,frame->data 是 mmap 缓冲区，必须尽快归还 QBUF） */
     preview_queue_entry_t *entry = &g_preview_queue[g_preview_head];	// 放进队列！preview线程出队用。
     entry->data = malloc(frame->length);
+    printf("入队+1\n");
     if (entry->data) {
         memcpy(entry->data, frame->data, frame->length);	//entry拿到采集线程的帧数据
         entry->length = frame->length;
@@ -84,6 +85,7 @@ static void *preview_worker_thread(void *arg) {
 
         /* g_preview_queue出队->取出帧（transfer ownership of malloc'd buffer） */
         preview_queue_entry_t *entry = &g_preview_queue[g_preview_tail]; //拿到队列，出队调g_preview_cb即on_preview_frame预览就行
+        printf("出队+1\n");
         void  *frame_data = entry->data;
         size_t frame_len  = entry->length;
         entry->data   = NULL;

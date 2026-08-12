@@ -127,6 +127,7 @@ static void *capture_thread_func(void *arg) {
         buf.memory = V4L2_MEMORY_MMAP;
         if (ioctl(g_fd, VIDIOC_DQBUF, &buf) < 0) { if (errno == EIO) continue; perror("[HAL_CAM] DQBUF"); break; }
 		//取出已填好的帧
+        printf("出帧+1\n");
         unsigned int idx = buf.index;
         if (g_frame_cb && buf.index < (unsigned int)g_nbufs) {	
             g_bufs[buf.index].buf = buf;					// 把帧数据传给上层
