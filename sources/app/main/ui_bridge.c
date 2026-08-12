@@ -107,9 +107,9 @@ static void refresh_status_labels(void)
     /* 4. 网络状态（预留，当前显示占位）*/
     /* 4. 网络状态（读取 g_mqtt_connected）*/
     if (g_mqtt_connected) {
-        lv_label_set_text(ui_LabelNet, "网络: ● 已连接");
+        lv_label_set_text(ui_LabelNet, "net: connected");
     } else {
-        lv_label_set_text(ui_LabelNet, "网络: ○ 断开");
+        lv_label_set_text(ui_LabelNet, "net: discon");
     }
 }
 
@@ -128,7 +128,7 @@ static void status_timer_cb(lv_timer_t *timer)
 static void async_update_preview(void *user_data)
 {
     (void)user_data;
-    printf("async_update_preview调用\n");
+    //printf("async_update_preview调用\n");
     if (!g_preview_img) {
         g_preview_img = ui_ImgPreview;
     }
@@ -144,7 +144,7 @@ static void async_update_preview(void *user_data)
     img_dsc.data = (const uint8_t *)g_preview_buf;
 
     lv_img_set_src(g_preview_img, &img_dsc);
-    printf("lv_img_set_src done\n");
+    //printf("lv_img_set_src done\n");
     g_preview_pending = 0;
 }
 

@@ -61,7 +61,7 @@ static volatile int g_running = 1;
  */
 static void on_preview_frame(const hal_camera_frame_t *frame, void *user_data) {
     (void)user_data;
-    printf("预览帧操作开始\n");
+    //printf("预览帧操作开始\n");
     /* 静态缓冲区：避免每帧重复 malloc/free RGB565 缓冲区 */
     static void *rgb_buf = NULL;
     static int rgb_buf_size = 0;
@@ -81,7 +81,7 @@ static void on_preview_frame(const hal_camera_frame_t *frame, void *user_data) {
     }
     /* MJPEG 解码转 RGB565 */
     int ret = mjpeg_to_rgb565(frame->data, frame->length, rgb_buf, w, h);
-    printf("mjpeg_to_rgb565的返回值 = %d\n", ret);
+    //printf("mjpeg_to_rgb565的返回值 = %d\n", ret);
     if (ret < 0) {
         /* 解码失败，跳过此帧显示 */
         return;
@@ -195,7 +195,7 @@ static int init_all(const char *cam_dev) {
     }
 
     /* 8. 触摸屏 */
-    if (hal_touch_init("/dev/input/event0") < 0) {
+    if (hal_touch_init("/dev/input/event1") < 0) {
         fprintf(stderr, "[MAIN] touch init failed, UI buttons will not work via touch\n");
     }
 

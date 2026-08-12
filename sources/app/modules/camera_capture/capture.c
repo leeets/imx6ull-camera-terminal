@@ -57,7 +57,7 @@ static void preview_bridge(const hal_camera_frame_t *frame, void *user_data) {
     /* 用entry拷贝 MJPEG 帧数据（frame就是帧数据结构体,frame->data 是 mmap 缓冲区，必须尽快归还 QBUF） */
     preview_queue_entry_t *entry = &g_preview_queue[g_preview_head];	// 放进队列！preview线程出队用。
     entry->data = malloc(frame->length);
-    printf("入队+1\n");
+    //printf("入队+1\n");
     if (entry->data) {
         memcpy(entry->data, frame->data, frame->length);	//entry拿到采集线程的帧数据
         entry->length = frame->length;
@@ -85,7 +85,7 @@ static void *preview_worker_thread(void *arg) {
 
         /* g_preview_queue出队->取出帧（transfer ownership of malloc'd buffer） */
         preview_queue_entry_t *entry = &g_preview_queue[g_preview_tail]; //拿到队列，出队调g_preview_cb即on_preview_frame预览就行
-        printf("出队+1\n");
+        //printf("出队+1\n");
         void  *frame_data = entry->data;
         size_t frame_len  = entry->length;
         entry->data   = NULL;
@@ -171,48 +171,36 @@ int capture_start_preview(capture_preview_cb_t cb, void *user_data) {
     return 0;
 }
 
-/* 拍照：暂停预览 → 单帧捕获 → 恢复预览 */
+/* 拍照：暂停预览 → 单帧捕获 → 恢复预览 (这套流程不能用！)*/
+/* 改成： 预览时 preview_bridge 已经把每帧 MJPEG 拷贝进环形队列了，照片直接从队列里拿最新一帧即可！ */
 int capture_take_photo(capture_photo_cb_t cb, void *user_data) {
-    hal_camera_frame_t frame;
-    int was_previewing = g_preview_started;
+      if (!g_preview_started || !cb) return -1;
 
-    if (was_previewing) {
-        /* 先停工作线程再停 V4L2 */
-        if (g_worker_running) {
-            pthread_mutex_lock(&g_preview_mutex);
-            g_worker_running = 0;
-            pthread_cond_signal(&g_preview_cond);
-            pthread_mutex_unlock(&g_preview_mutex);
-            pthread_join(g_worker_thread, NULL);
-        }
-        hal_camera_stop();
-        g_preview_started = 0;
-    }
+      /* 从预览环形队列取最新一帧（最多等 500ms），不停流、不碰 REQBUFS */
+      void *photo = NULL;
+      size_t photo_len = 0;
 
-    int ret = hal_camera_capture_one(&frame);
-    if (ret == 0 && cb) {
-        cb(frame.data, frame.length, user_data);
-        munmap(frame.data, frame.buf.length);
-    }
+      for (int tries = 0; tries < 50 && !photo; tries++) {
+          pthread_mutex_lock(&g_preview_mutex);
+          if (g_preview_head != g_preview_tail) {
+              int idx = (g_preview_head - 1 + PREVIEW_QUEUE_SIZE) % PREVIEW_QUEUE_SIZE;
+              if (g_preview_queue[idx].data && g_preview_queue[idx].length) {
+                  photo = malloc(g_preview_queue[idx].length);
+                  if (photo) {
+                      memcpy(photo, g_preview_queue[idx].data, g_preview_queue[idx].length);
+                      photo_len = g_preview_queue[idx].length;
+                  }
+              }
+          }
+          pthread_mutex_unlock(&g_preview_mutex);
+          if (!photo) usleep(10000);   /* 队列暂时空，等下一帧 */
+      }
 
-    if (was_previewing) {
-        /* 重启工作线程 */
-        g_worker_running = 1;
-        if (pthread_create(&g_worker_thread, NULL, preview_worker_thread, NULL) != 0) {
-            perror("[CAPTURE] worker thread restart");
-            g_worker_running = 0;
-            return -1;
-        }
-        /* 重启 V4L2 采集 */
-        if (hal_camera_start(preview_bridge, NULL) < 0) {
-            g_worker_running = 0;
-            pthread_cond_signal(&g_preview_cond);
-            pthread_join(g_worker_thread, NULL);
-            return -1;
-        }
-        g_preview_started = 1;
-    }
-    return ret;
+      if (!photo) return -1;
+
+      cb(photo, photo_len, user_data);
+      free(photo);
+      return 0;
 }
 
 void capture_stop(void) {

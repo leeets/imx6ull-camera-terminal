@@ -3,6 +3,7 @@
  *
  * 通过 input_event 结构体读取 /dev/input/eventX 触摸事件。
  * 支持 EV_ABS（USB 电容屏）和 EV_KEY（电阻屏）。
+ * 修复：hal_touch.c 加 MT 协议 B 的解析，坐标范围用 EVIOCGABS 从驱动动态读（不要硬编码 32767），同时把缩放改成 1024×600
  */
 
 #include "hal_touch.h"
@@ -14,11 +15,15 @@
 #include <errno.h>
 #include <linux/input.h>
 
+/* 文件顶部静态变量区加 */
+static int g_abs_x_min = 0, g_abs_x_max = 32767;
+static int g_abs_y_min = 0, g_abs_y_max = 32767;
+
 /* 私有全局变量 */
 static int g_touch_fd = -1;
 /* 默认分辨率，可通过 ioctl 或校准更新 */
-static uint16_t g_screen_width  = 800;
-static uint16_t g_screen_height = 480;
+static uint16_t g_screen_width  = 1024;
+static uint16_t g_screen_height = 600;
 static bool g_nonblock = false;
 
 /* 缓存的坐标（用于 EV_SYN 同步事件）*/
@@ -38,8 +43,17 @@ int hal_touch_init(const char *dev_path)
                 dev_path, strerror(errno));
         return -1;
     }
-
     printf("[HAL_TOUCH] 已打开 %s (fd=%d)\n", dev_path, g_touch_fd);
+    /*Open成功后加入：*/
+    struct input_absinfo ai;
+    if (ioctl(g_touch_fd, EVIOCGABS(ABS_MT_POSITION_X), &ai) == 0) {
+        g_abs_x_min = ai.minimum; g_abs_x_max = ai.maximum;
+    }
+    if (ioctl(g_touch_fd, EVIOCGABS(ABS_MT_POSITION_Y), &ai) == 0) {
+        g_abs_y_min = ai.minimum; g_abs_y_max = ai.maximum;
+    }
+    printf("[HAL_TOUCH] abs x[%d,%d] y[%d,%d]\n", g_abs_x_min, g_abs_x_max, g_abs_y_min, g_abs_y_max);
+
     return 0;
 }
 
@@ -67,58 +81,81 @@ int hal_touch_read(hal_touch_event_t *out)
     if (n != sizeof(ev))
         return 0;   /* 不完整事件，跳过 */
 
-    /* 解析 input_event内容 */
-    switch (ev.type) {
-    case EV_ABS:
-        /* USB 电容触摸屏 */
-        switch (ev.code) {
-        case ABS_X:
-            g_last_x = (uint16_t)(ev.value * g_screen_width / 32767);
-            break;
-        case ABS_Y:
-            g_last_y = (uint16_t)(ev.value * g_screen_height / 32767);
-            break;
-        case ABS_PRESSURE:
-            if (ev.value > 0 && !touch_state) {		//按下（状态没有但事件有）
-                touch_state = 1;						//更新按下状态1
-                out->action = HAL_TOUCH_PRESS;			//类型是按下
-            } else if (ev.value == 0 && touch_state) {		//释放（状态有但事件没有）
-                touch_state = 0;						//更新按下状态0
-                out->action = HAL_TOUCH_RELEASE;
-            } else {
-                out->action = HAL_TOUCH_MOVE;
-            }
-            break;
-        }
-        break;
+  /* 解析 input_event内容（修复：保留老协议，加 MT B） */
+  switch (ev.type) {
+  /* 电容触摸屏 */
+  case EV_ABS:
+      switch (ev.code) {
+      case ABS_X:
+      case ABS_MT_POSITION_X:
+      {
+          int range = g_abs_x_max - g_abs_x_min;
+          if (range <= 0) range = 1;
+          int v = (ev.value - g_abs_x_min) * g_screen_width / range;
+          if (v < 0) v = 0;
+          if (v >= (int)g_screen_width) v = g_screen_width - 1;
+          g_last_x = (uint16_t)v;
+          break;
+      }
+      case ABS_Y:
+      case ABS_MT_POSITION_Y:
+      {
+          int range = g_abs_y_max - g_abs_y_min;
+          if (range <= 0) range = 1;
+          int v = (ev.value - g_abs_y_min) * g_screen_height / range;
+          if (v < 0) v = 0;
+          if (v >= (int)g_screen_height) v = g_screen_height - 1;
+          g_last_y = (uint16_t)v;
+          break;
+      }
+      case ABS_MT_TRACKING_ID:
+          /* 协议B：>=0 按下，<0 抬起 */
+          if (ev.value >= 0 && !touch_state) {
+              touch_state = 1;
+              out->action = HAL_TOUCH_PRESS;
+          } else if (ev.value < 0 && touch_state) {
+              touch_state = 0;
+              out->action = HAL_TOUCH_RELEASE;
+          }
+          break;
+      case ABS_PRESSURE:
+          /* 老协议兜底 */
+          if (ev.value > 0 && !touch_state) {
+              touch_state = 1;
+              out->action = HAL_TOUCH_PRESS;
+          } else if (ev.value == 0 && touch_state) {
+              touch_state = 0;
+              out->action = HAL_TOUCH_RELEASE;
+          }
+          break;
+      default:
+          break;
+      }
+      break;
+  /* 电阻触摸屏 */
+  case EV_KEY:
+      if (ev.code == BTN_TOUCH) {
+          if (ev.value == 1 && !touch_state) {
+              touch_state = 1;
+              out->action = HAL_TOUCH_PRESS;
+          } else if (ev.value == 0 && touch_state) {
+              touch_state = 0;
+              out->action = HAL_TOUCH_RELEASE;
+          }
+      }
+      break;
+    /* 同步事件--标记一次完整事件的结束、批量传输优化 */
+  case EV_SYN:
+      out->x = g_last_x;
+      out->y = g_last_y;
+      /* 手指按下且本帧没有按下/抬起事件，才算滑动 */
+      if (touch_state && out->action == HAL_TOUCH_NONE)
+          out->action = HAL_TOUCH_MOVE;
+      break;
 
-    case EV_KEY:
-        /* 电阻触摸屏 */
-        if (ev.code == BTN_TOUCH) {
-            if (ev.value == 1 && !touch_state) {
-                touch_state = 1;
-                out->action = HAL_TOUCH_PRESS;
-            } else if (ev.value == 0 && touch_state) {
-                touch_state = 0;
-                out->action = HAL_TOUCH_RELEASE;
-            }
-        }
-        break;
-
-    case EV_SYN:
-        /* 同步事件 - 报告累积的坐标 */
-        if (touch_state) {
-            out->x = g_last_x;
-            out->y = g_last_y;
-            if (out->action == HAL_TOUCH_NONE)
-                out->action = HAL_TOUCH_MOVE;
-        }
-        break;
-
-    default:
-        return 0;   /* 忽略其他事件类型 */
-    }
-
+  default:
+      return 0;
+  }
     out->x = g_last_x;
     out->y = g_last_y;		//更新坐标
 

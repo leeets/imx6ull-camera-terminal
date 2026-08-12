@@ -105,7 +105,10 @@ static void free_buffers(void) {
     struct v4l2_requestbuffers req;
     memset(&req, 0, sizeof(req));
     req.count = 0; req.type = V4L2_BUF_TYPE_VIDEO_CAPTURE; req.memory = V4L2_MEMORY_MMAP;
-    ioctl(g_fd, VIDIOC_REQBUFS, &req);
+    if (ioctl(g_fd, VIDIOC_REQBUFS, &req) < 0)
+      perror("[HAL_CAM] REQBUFS free");
+    else
+      printf("[HAL_CAM] REQBUFS free ok\n");
 
 }
 
@@ -127,7 +130,7 @@ static void *capture_thread_func(void *arg) {
         buf.memory = V4L2_MEMORY_MMAP;
         if (ioctl(g_fd, VIDIOC_DQBUF, &buf) < 0) { if (errno == EIO) continue; perror("[HAL_CAM] DQBUF"); break; }
 		//取出已填好的帧
-        printf("出帧+1\n");
+        //printf("出帧+1\n");
         unsigned int idx = buf.index;
         if (g_frame_cb && buf.index < (unsigned int)g_nbufs) {	
             g_bufs[buf.index].buf = buf;					// 把帧数据传给上层
@@ -253,12 +256,16 @@ out:
 }
 /*停止视频流*/
 void hal_camera_stop(void) {
+    printf("[HAL_CAM] stop: g_streaming=%d\n", g_streaming);
     enum v4l2_buf_type type;
     if (!g_streaming) return;
     g_streaming = 0;
     if (g_thread_running) { pthread_join(g_capture_thread, NULL); g_thread_running = 0; }
     type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
-    ioctl(g_fd, VIDIOC_STREAMOFF, &type);
+    if (ioctl(g_fd, VIDIOC_STREAMOFF, &type) < 0)
+      perror("[HAL_CAM] STREAMOFF");
+    else
+      printf("[HAL_CAM] STREAMOFF ok\n");
     free_buffers();
 }
 

@@ -35,10 +35,12 @@ static void pointer_read(lv_indev_drv_t *drv, lv_indev_data_t *data)
     int ret = hal_touch_read(&ev);
 
     if (ret == 1) {
+        printf("[TOUCH] x=%d y=%d action=%d\n", ev.x, ev.y, ev.action);
         data->point.x = ev.x;
         data->point.y = ev.y;
-        data->state = (ev.action == HAL_TOUCH_PRESS) ?
-                      LV_INDEV_STATE_PRESSED : LV_INDEV_STATE_RELEASED;
+        /* MOVE 也发生在手指按下期间，应保持 PRESSED */
+        data->state = (ev.action == HAL_TOUCH_RELEASE) ?
+                      LV_INDEV_STATE_RELEASED : LV_INDEV_STATE_PRESSED;
     } else {
         data->state = LV_INDEV_STATE_RELEASED;
     }
