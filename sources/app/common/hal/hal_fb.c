@@ -49,7 +49,7 @@ int hal_fb_init(void) {
 int hal_fb_draw_rgb565(const void *rgb, int w, int h) {
     int screen_w = g_var.xres;
     int screen_h = g_var.yres;
-    int src_stride = w * 2;
+    int src_stride = w * 4;
     int dst_stride = g_line_width;
     int offset_x, offset_y;
     int copy_w, copy_h;

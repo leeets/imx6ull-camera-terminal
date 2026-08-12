@@ -140,7 +140,7 @@ static void async_update_preview(void *user_data)
     img_dsc.header.w = PREVIEW_W;
     img_dsc.header.h = PREVIEW_H;
     img_dsc.header.cf = LV_IMG_CF_TRUE_COLOR;
-    img_dsc.data_size = PREVIEW_W * PREVIEW_H * 2;
+    img_dsc.data_size = PREVIEW_W * PREVIEW_H * 4;// 改成4字节/像素
     img_dsc.data = (const uint8_t *)g_preview_buf;
 
     lv_img_set_src(g_preview_img, &img_dsc);
@@ -154,7 +154,18 @@ void ui_bridge_update_preview(const void *rgb565)
     if (g_preview_pending) return;
 
     /* 立即拷贝到自有缓冲区（采集线程中执行，但拷贝是原子的）*/
-    memcpy(g_preview_buf, rgb565, PREVIEW_W * PREVIEW_H * 2);
+    /* 修复：memcpy 改成逐像素转换 */
+      const uint16_t *src = (const uint16_t *)rgb565;
+      for (int i = 0; i < PREVIEW_W * PREVIEW_H; i++) {
+        uint16_t p = src[i];
+        uint8_t r = ((p >> 11) & 0x1f);  r = (r << 3) | (r >> 2);
+        uint8_t g = ((p >> 5)  & 0x3f);  g = (g << 2) | (g >> 6);
+        uint8_t b = (p & 0x1f);          b = (b << 3) | (b >> 2);
+        g_preview_buf[i].ch.blue  = b;
+        g_preview_buf[i].ch.green = g;
+        g_preview_buf[i].ch.red   = r;
+        g_preview_buf[i].ch.alpha = 0xff;
+      }
     g_preview_pending = 1;
 
     /* 通过 lv_async_call 切换到主线程更新 ui_ImgPreview */

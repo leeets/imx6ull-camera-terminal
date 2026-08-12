@@ -101,6 +101,12 @@ static void free_buffers(void) {
         g_bufs = NULL;
     }
     g_nbufs = 0;
+/* 修复REQBUFS: Device or resource busy */
+    struct v4l2_requestbuffers req;
+    memset(&req, 0, sizeof(req));
+    req.count = 0; req.type = V4L2_BUF_TYPE_VIDEO_CAPTURE; req.memory = V4L2_MEMORY_MMAP;
+    ioctl(g_fd, VIDIOC_REQBUFS, &req);
+
 }
 
 /* ==================== 采集线程 ==================== */
@@ -109,7 +115,6 @@ static void *capture_thread_func(void *arg) {
     struct v4l2_buffer buf;
 
     while (g_streaming) {
-        unsigned int idx = buf.index;
         fd_set fds;
         FD_ZERO(&fds); FD_SET(g_fd, &fds);
         struct timeval tv = {2, 0};
@@ -122,6 +127,7 @@ static void *capture_thread_func(void *arg) {
         buf.memory = V4L2_MEMORY_MMAP;
         if (ioctl(g_fd, VIDIOC_DQBUF, &buf) < 0) { if (errno == EIO) continue; perror("[HAL_CAM] DQBUF"); break; }
 		//取出已填好的帧
+        unsigned int idx = buf.index;
         if (g_frame_cb && buf.index < (unsigned int)g_nbufs) {	
             g_bufs[buf.index].buf = buf;					// 把帧数据传给上层
             g_bufs[buf.index].length = buf.bytesused;
