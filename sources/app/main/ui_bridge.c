@@ -111,6 +111,7 @@ static void refresh_status_labels(void)
     } else {
         lv_label_set_text(ui_LabelNet, "网络: ○ 断开");
     }
+}
 
 /**********************
  *  状态定时器回调
