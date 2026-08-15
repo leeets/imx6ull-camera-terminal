@@ -40,6 +40,7 @@ rootfs_overlay/etc/init.d/S99local
 
 # Windows Zone Identifier (NTFS alternate data stream artifacts)
 *:Zone.Identifier
+*_Zone.Identifier
 
 # Kernel module build artifacts
 sources/driver/gpio-keys/*.o
