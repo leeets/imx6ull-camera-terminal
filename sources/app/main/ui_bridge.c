@@ -47,7 +47,7 @@ static int      g_photo_count   = 0;
 static int      g_photo_current = 0;
 
 /**********************
- *  STATIC PROTOTYPES
+ *  STATIC PROTOTYPES 前向声明，先声明在使用！
  **********************/
 static void status_timer_cb(lv_timer_t *timer);
 static void refresh_status_labels(void);
@@ -63,16 +63,6 @@ static void async_update_preview(void *user_data);
  **********************/
 static void refresh_status_labels(void)
 {
-    /*  打印按钮矩形区域 */
-    static int dbg_once = 0;
-    if (!dbg_once) {
-    dbg_once = 1;
-    lv_area_t a;
-    lv_obj_get_coords(ui_BtnAlbum, &a);
-    printf("[DBG] BtnAlbum rect=(%d,%d)-(%d,%d) size=%dx%d\n",
-           a.x1, a.y1, a.x2, a.y2,
-           lv_obj_get_width(ui_BtnAlbum), lv_obj_get_height(ui_BtnAlbum));
-  }
     /* 1. GPS 状态 */
     if (gps_is_valid()) {
         gps_data_t gps;
@@ -95,11 +85,11 @@ static void refresh_status_labels(void)
         if (storage_get_stats(&stats) == 0) {
             uint64_t used_mb = stats.total_bytes / (1024 * 1024);
             uint64_t cap_mb  = stats.capacity_bytes / (1024 * 1024);
-            snprintf(buf, sizeof(buf), "storage: %llu/%llu MB",
+            snprintf(buf, sizeof(buf), "存储: %llu/%llu MB",
                      (unsigned long long)used_mb,
                      (unsigned long long)cap_mb);
         } else {
-            snprintf(buf, sizeof(buf), "storage: --");
+            snprintf(buf, sizeof(buf), "存储: --");
         }
         lv_label_set_text(ui_LabelStorage, buf);
     }
@@ -108,20 +98,19 @@ static void refresh_status_labels(void)
     {
         const char *rec_text;
         if (recorder_get_state() == RECORDER_RECORDING)
-            rec_text = "recorder: recording";
+            rec_text = "录像: ● 录制中";
         else
-            rec_text = "recorder: idle";
+            rec_text = "录像: ○ 空闲";
         lv_label_set_text(ui_LabelRecStatus, rec_text);
     }
 
     /* 4. 网络状态（预留，当前显示占位）*/
     /* 4. 网络状态（读取 g_mqtt_connected）*/
     if (g_mqtt_connected) {
-        lv_label_set_text(ui_LabelNet, "net: connected");
+        lv_label_set_text(ui_LabelNet, "网络: ● 已连接");
     } else {
-        lv_label_set_text(ui_LabelNet, "net: disconnected");
+        lv_label_set_text(ui_LabelNet, "网络: ○ 断开");
     }
-}
 
 /**********************
  *  状态定时器回调
@@ -134,27 +123,28 @@ static void status_timer_cb(lv_timer_t *timer)
 
 /**********************
  *  预览帧更新（直接在主线程中执行）
+ *  修改：摄像头的帧尺寸是640x480，需要让 LVGL 缩放铺满预览帧
  **********************/
 static void async_update_preview(void *user_data)
 {
     (void)user_data;
-    //printf("async_update_preview调用\n");
+
     if (!g_preview_img) {
         g_preview_img = ui_ImgPreview;
     }
 
     /* 数据已在回调触发前拷贝到 g_preview_buf，直接使用 */
-    static lv_img_dsc_t img_dsc;
+    lv_img_dsc_t img_dsc;
     memset(&img_dsc, 0, sizeof(img_dsc));
     img_dsc.header.always_zero = 0;
     img_dsc.header.w = PREVIEW_W;
     img_dsc.header.h = PREVIEW_H;
     img_dsc.header.cf = LV_IMG_CF_TRUE_COLOR;
-    img_dsc.data_size = PREVIEW_W * PREVIEW_H * 4;// 改成4字节/像素
+    img_dsc.data_size = PREVIEW_W * PREVIEW_H * 2;//缩放图像即可
     img_dsc.data = (const uint8_t *)g_preview_buf;
 
+	lv_img_set_zoom(g_preview_img, 256 * LV_HOR_RES_MAX / PREVIEW_W); // 256*1024/640 ≈ 410
     lv_img_set_src(g_preview_img, &img_dsc);
-    //printf("lv_img_set_src done\n");
     g_preview_pending = 0;
 }
 
@@ -165,18 +155,7 @@ void ui_bridge_update_preview(const void *rgb565)
     if (g_preview_pending) return;
 
     /* 立即拷贝到自有缓冲区（采集线程中执行，但拷贝是原子的）*/
-    /* 修复：memcpy 改成逐像素转换 */
-      const uint16_t *src = (const uint16_t *)rgb565;
-      for (int i = 0; i < PREVIEW_W * PREVIEW_H; i++) {
-        uint16_t p = src[i];
-        uint8_t r = ((p >> 11) & 0x1f);  r = (r << 3) | (r >> 2);
-        uint8_t g = ((p >> 5)  & 0x3f);  g = (g << 2) | (g >> 6);
-        uint8_t b = (p & 0x1f);          b = (b << 3) | (b >> 2);
-        g_preview_buf[i].ch.blue  = b;
-        g_preview_buf[i].ch.green = g;
-        g_preview_buf[i].ch.red   = r;
-        g_preview_buf[i].ch.alpha = 0xff;
-      }
+    memcpy(g_preview_buf, rgb565, PREVIEW_W * PREVIEW_H * 2);
     g_preview_pending = 1;
 
     /* 通过 lv_async_call 切换到主线程更新 ui_ImgPreview */
@@ -286,7 +265,6 @@ void ui_bridge_init(void)
     lv_obj_add_event_cb(ui_btnPrev, on_btnPrev_clicked, LV_EVENT_CLICKED, NULL);
     lv_obj_add_event_cb(ui_btnNext, on_btnNext_clicked, LV_EVENT_CLICKED, NULL);
     lv_obj_add_event_cb(ui_btnDelete, on_btnDelete_clicked, LV_EVENT_CLICKED, NULL);
-    
+
     printf("[UI_BRIDGE] init: status timer created\n");
 }
-
