@@ -140,10 +140,10 @@ static void async_update_preview(void *user_data)
     img_dsc.header.w = PREVIEW_W;
     img_dsc.header.h = PREVIEW_H;
     img_dsc.header.cf = LV_IMG_CF_TRUE_COLOR;
-    img_dsc.data_size = PREVIEW_W * PREVIEW_H * 2;//缩放图像即可
+    img_dsc.data_size = PREVIEW_W * PREVIEW_H * 2;
     img_dsc.data = (const uint8_t *)g_preview_buf;
 
-	lv_img_set_zoom(g_preview_img, 256 * LV_HOR_RES_MAX / PREVIEW_W); // 256*1024/640 ≈ 410
+	lv_img_set_zoom(g_preview_img, 256 * LV_HOR_RES_MAX / PREVIEW_W); // 256*1024/640 ≈ 410缩放图像即可
     lv_img_set_src(g_preview_img, &img_dsc);
     g_preview_pending = 0;
 }
