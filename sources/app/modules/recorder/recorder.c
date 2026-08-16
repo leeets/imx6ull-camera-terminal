@@ -187,6 +187,9 @@ static int write_chunk(int fd, uint32_t id, const void *data, size_t len) {
 }
 
 /* 写入 AVI 头部 */
+/* 修复：hdrl_size 应该是"hdrl"(4) + avih块(8+56=64) + strl列表块(8头 + "strl"(4) + strh块(8+64) + strf块(8+40) = 132)
+*  共200
+*/
 static int write_avi_header(int fd) {
     riff_chunk_t riff;
     riff.id   = fourcc("RIFF");
@@ -195,7 +198,7 @@ static int write_avi_header(int fd) {
     if (write_all(fd, "AVI ", 4) < 0) return -1;
 
     if (write_all(fd, "LIST", 4) < 0) return -1;
-    uint32_t hdrl_size = 4 + AVI_HEADER_SIZE + 4 + 8 + STREAM_HEADER_SIZE + FORMAT_SIZE;
+    uint32_t hdrl_size = 4 + 8 + AVI_HEADER_SIZE + 8 + 4 + 8 + STREAM_HEADER_SIZE + 8 + FORMAT_SIZE; //共200字节
     if (write_all(fd, &hdrl_size, 4) < 0) return -1;
     if (write_all(fd, "hdrl", 4) < 0) return -1;
 
@@ -471,6 +474,11 @@ int recorder_write_frame(const void *data, size_t len) {
     return 0;
 }
 
+/* 
+* 修复：
+* movi 数据 = "movi"(4) + 所有帧
+* 所以movi_size应该 = cur - g_movi_offset - 8（减掉 LIST 头 4 字节 + size 字段 4 字节）
+*/
 int recorder_stop(void) {
     if (!g_recording || g_fd < 0) return -1;
     g_recording = 0;
@@ -486,7 +494,7 @@ int recorder_stop(void) {
 
     off_t cur = lseek(g_fd, 0, SEEK_CUR);
 
-    uint32_t movi_size = (uint32_t)(cur - g_movi_offset - 4);
+    uint32_t movi_size = (uint32_t)(cur - g_movi_offset - 8);
     lseek(g_fd, g_movi_offset, SEEK_SET);
     write_all(g_fd, &movi_size, 4);
     lseek(g_fd, cur, SEEK_SET);
