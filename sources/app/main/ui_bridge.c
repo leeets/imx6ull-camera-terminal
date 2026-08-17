@@ -157,7 +157,8 @@ static void async_update_preview(void *user_data)
     img_dsc.header.cf = LV_IMG_CF_TRUE_COLOR;
     img_dsc.data_size = PREVIEW_W * PREVIEW_H * 4;   /* 修复：LV_COLOR_DEPTH=32，每像素 4 字节 */
     img_dsc.data = (const uint8_t *)g_preview_buf;
-
+    
+    lv_img_set_zoom(g_preview_img, 256 * LV_HOR_RES_MAX / PREVIEW_W); //缩放640×480 放大为 1024×768，铺满屏幕
     lv_img_set_src(g_preview_img, &img_dsc);
     g_preview_pending = 0;
 }
