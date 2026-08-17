@@ -87,7 +87,7 @@ static void refresh_status_labels(void)
         }
         lv_label_set_text(ui_LabelGps, buf);
     } else {
-        lv_label_set_text(ui_LabelGps, "GPS: 定位中...");
+        lv_label_set_text(ui_LabelGps, "GPS: locating...");
     }
 
     /* 2. 存储状态 */
@@ -97,11 +97,11 @@ static void refresh_status_labels(void)
         if (storage_get_stats(&stats) == 0) {
             uint64_t used_mb = stats.total_bytes / (1024 * 1024);
             uint64_t cap_mb  = stats.capacity_bytes / (1024 * 1024);
-            snprintf(buf, sizeof(buf), "存储: %llu/%llu MB",
+            snprintf(buf, sizeof(buf), "storage: %llu/%llu MB",
                      (unsigned long long)used_mb,
                      (unsigned long long)cap_mb);
         } else {
-            snprintf(buf, sizeof(buf), "存储: --");
+            snprintf(buf, sizeof(buf), "storage: --");
         }
         lv_label_set_text(ui_LabelStorage, buf);
     }
@@ -110,18 +110,18 @@ static void refresh_status_labels(void)
     {
         const char *rec_text;
         if (recorder_get_state() == RECORDER_RECORDING)
-            rec_text = "录像: ● 录制中";
+            rec_text = "recorder: recording";
         else
-            rec_text = "录像: ○ 空闲";
+            rec_text = "recorder: idle";
         lv_label_set_text(ui_LabelRecStatus, rec_text);
     }
 
     /* 4. 网络状态（预留，当前显示占位）*/
     /* 4. 网络状态（读取 g_mqtt_connected）*/
     if (g_mqtt_connected) {
-        lv_label_set_text(ui_LabelNet, "网络: ● 已连接");
+        lv_label_set_text(ui_LabelNet, "net: disconnected");
     } else {
-        lv_label_set_text(ui_LabelNet, "网络: ○ 断开");
+        lv_label_set_text(ui_LabelNet, "net: connected");
     }
 }
 
