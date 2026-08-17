@@ -59,7 +59,7 @@ static void jpeg_error_exit(j_common_ptr cinfo) {
  * 基于 libjpeg-turbo，利用 NEON 加速解码
  * 输出缓冲区必须 >= width * height * 2 字节
  */
-int mjpeg_to_rgb565(const void *src, size_t src_len,
+int mjpeg_to_argb8888(const void *src, size_t src_len,
                     void *dst, int width, int height) {
     struct jpeg_decompress_struct cinfo;
     struct jpeg_error_mgr_wrap jerr;
@@ -78,20 +78,24 @@ int mjpeg_to_rgb565(const void *src, size_t src_len,
     jpeg_mem_src(&cinfo, (unsigned char *)src, src_len);
 
     jpeg_read_header(&cinfo, TRUE);
+	/* 修改：为了减小延迟，640x480 → 320x240：libjpeg IDCT 快速缩放，解码量约 1/4 */
+	cinfo.scale_num = 1;
+    cinfo.scale_den = 2;
 
-    /* 输出 RGB888，后续逐行转 RGB565 */
+    /* 输出 RGB888，直出ARGB */
     cinfo.out_color_space = JCS_RGB;
     jpeg_calc_output_dimensions(&cinfo);
 
     jpeg_start_decompress(&cinfo);
 
     {
+    	/* 修改：输出直接4字节/像素 */
         int row_stride = cinfo.output_width * cinfo.output_components;
         row_rgb = (unsigned char *)malloc(row_stride);
         if (!row_rgb)
             goto out_dec;
 
-        unsigned short *rgb565 = (unsigned short *)dst;
+        uint32_t *argb = (uint32_t *)dst;
         int out_w = (int)cinfo.output_width;
         int min_w = (out_w < width) ? out_w : width;
         int y = 0;
@@ -100,15 +104,21 @@ int mjpeg_to_rgb565(const void *src, size_t src_len,
             unsigned char *rows[1] = { row_rgb };
             jpeg_read_scanlines(&cinfo, rows, 1);
 
-            /* 逐像素 RGB888 -> RGB565 */
+            /* 逐像素 修改：直出ARGB */
             int x;
             for (x = 0; x < min_w; x++) {
                 unsigned char *p = row_rgb + x * 3;
-                int r = p[0];
+				/* B,G,R,A（小端）== (A<<24)|(R<<16)|(G<<8)|B */
+                argb[y * width + x] =
+                    (0xFFu << 24) | ((uint32_t)p[0] << 16) |
+                    ((uint32_t)p[1] << 8) | (uint32_t)p[2];
+			
+                /*int r = p[0];
                 int g = p[1];
                 int b = p[2];
                 rgb565[y * width + x] =
-                    ((r >> 3) << 11) | ((g >> 2) << 5) | (b >> 3);
+                    ((r >> 3) << 11) | ((g >> 2) << 5) | (b >> 3);*/
+                    
             }
             y++;
         }

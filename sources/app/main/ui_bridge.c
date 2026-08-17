@@ -29,6 +29,9 @@
 #include <stdint.h>
 #include <jpeglib.h>
 
+#include <pthread.h>
+
+
 /*********************
  *      DEFINES
  *********************/
@@ -38,11 +41,15 @@
  **********************/
 static lv_obj_t *g_preview_img = NULL;
 
-/* 预览帧拷贝缓冲区：独立于采集线程，避免野指针 */
-#define PREVIEW_W  640
-#define PREVIEW_H  480
-static lv_color_t g_preview_buf[PREVIEW_W * PREVIEW_H];
-static volatile int g_preview_pending = 0;
+/* 预览双缓冲：采集线程解码直写“非显示”缓冲，主线程只换指针 */
+#define PREVIEW_W  320
+#define PREVIEW_H  240		//预览帧改成320*240新尺寸，会减小延迟。后续的zoom、写帧等都不用改，自适应尺寸
+#define PREVIEW_BYTES (PREVIEW_W * PREVIEW_H * 4)
+
+static lv_color_t g_preview_buf[2][PREVIEW_W * PREVIEW_H];
+static pthread_mutex_t g_preview_mtx = PTHREAD_MUTEX_INITIALIZER;
+static int  g_preview_show = 0;              /* 当前给 LVGL 显示的缓冲索引 */
+static volatile int g_preview_pending = 0;   /* 1 = 有已写好的帧等主线程切换 */
 
 /* 相册状态 — 通过 storage_manager 接口管理 */
 static char   **g_photo_paths   = NULL;
@@ -66,6 +73,7 @@ static void load_photo_list(void);
 static void free_photo_list(void);
 static void show_current_photo(void);
 static int  decode_photo_to_dsc(const char *path);
+
 
 /* 预览帧更新（在 LVGL 主线程中执行）*/
 static void async_update_preview(void *user_data);
@@ -134,9 +142,34 @@ static void status_timer_cb(lv_timer_t *timer)
     refresh_status_labels();
 }
 
+/* 修改为双缓冲 + 锁：增加ui_bridge_preview_begin/commit函数，更改async_update_preview更新逻辑 */
+
+/* 采集线程调用：返回一块“空闲”缓冲供解码直写（无拷贝），写满后再更新预览帧 commit */
+uint8_t *ui_bridge_preview_begin(int *w, int *h)
+{
+    if (g_preview_pending) return NULL;      /* 上一帧还没显示，丢帧 */
+
+    pthread_mutex_lock(&g_preview_mtx);
+    uint8_t *buf = (uint8_t *)g_preview_buf[1 - g_preview_show];
+    pthread_mutex_unlock(&g_preview_mtx);
+
+    if (w) *w = PREVIEW_W;
+    if (h) *h = PREVIEW_H;
+    return buf;
+}
+
+void ui_bridge_preview_commit(void)
+{
+    g_preview_pending = 1;
+    lv_async_call(async_update_preview, NULL);
+}
+
+
+
 /**********************
  *  预览帧更新（直接在主线程中执行）
- *  修改：摄像头的帧尺寸是640x480，需要让 LVGL 缩放铺满预览帧
+ *  修改1：摄像头的帧尺寸是640x480，需要让 LVGL 缩放铺满预览帧
+ *  修改2：主线程（lv_async_call 上下文）：换指针 + 无效化，无数据拷贝
  **********************/
 static void async_update_preview(void *user_data)
 {
@@ -155,8 +188,14 @@ static void async_update_preview(void *user_data)
     img_dsc.header.w = PREVIEW_W;
     img_dsc.header.h = PREVIEW_H;
     img_dsc.header.cf = LV_IMG_CF_TRUE_COLOR;
-    img_dsc.data_size = PREVIEW_W * PREVIEW_H * 4;   /* 修复：LV_COLOR_DEPTH=32，每像素 4 字节 */
+    img_dsc.data_size = PREVIEW_BYTES;  
     img_dsc.data = (const uint8_t *)g_preview_buf;
+
+	//
+	pthread_mutex_lock(&g_preview_mtx);
+    g_preview_show = 1 - g_preview_show;     /* 换到刚写完的缓冲 */
+    img_dsc.data = (const uint8_t *)g_preview_buf[g_preview_show];
+    pthread_mutex_unlock(&g_preview_mtx);
     
     lv_img_set_zoom(g_preview_img, 256 * LV_HOR_RES_MAX / PREVIEW_W); //缩放640×480 放大为 1024×768，铺满屏幕
     lv_img_set_src(g_preview_img, &img_dsc);

@@ -59,10 +59,11 @@ static volatile int g_running = 1;
  * frame->data 是 malloc 拷贝的独立缓冲区，用完即 free，
  * 与 V4L2 的 mmap 缓冲区无关联，可以安全持有和使用。
  */
+ /* 修改:  直接解码进 ui_bridge 提供的空闲缓冲，删掉原来的 rgb_buf 静态缓冲和整段 RGB565→ARGB 转换调用*/
 static void on_preview_frame(const hal_camera_frame_t *frame, void *user_data) {
     (void)user_data;
     //printf("预览帧操作开始\n");
-    /* 静态缓冲区：避免每帧重复 malloc/free RGB565 缓冲区 */
+    /* 静态缓冲区：避免每帧重复 malloc/free RGB565 缓冲区 
     static void *rgb_buf = NULL;
     static int rgb_buf_size = 0;
 
@@ -75,20 +76,20 @@ static void on_preview_frame(const hal_camera_frame_t *frame, void *user_data) {
         rgb_buf_size = need;
         if (!rgb_buf) return;
     }
+    */
      /* 如果正在录像，将 MJPEG 帧入队列到 recorder 队列（异步写 SD 卡）*/
     if (recorder_get_state() == RECORDER_RECORDING) {
        recorder_write_frame(frame->data, frame->length);
     }
-    /* MJPEG 解码转 RGB565 */
-    int ret = mjpeg_to_rgb565(frame->data, frame->length, rgb_buf, w, h);
-    //printf("mjpeg_to_rgb565的返回值 = %d\n", ret);
-    if (ret < 0) {
-        /* 解码失败，跳过此帧显示 */
-        return;
-    }
+	/* 解码 */
+    int w = 0, h = 0;
+    uint8_t *dst = ui_bridge_preview_begin(&w, &h);   /* 直接拿双缓冲中的空闲块 */
+    if (!dst) return;                                 /* 上一帧未显示完，丢帧 */
 
-    /* 通过 LVGL的ui_bridge 异步更新 LVGL 图像控件（采集线程 → 主线程 lv_async_call）*/
-    ui_bridge_update_preview(rgb_buf);
+    if (mjpeg_to_argb8888(frame->data, frame->length, dst, w, h) < 0)//新的解码工具，双缓冲直出ARGB
+        return;
+
+    ui_bridge_preview_commit();//新的异步调用更新预览的工具
 
 }
 

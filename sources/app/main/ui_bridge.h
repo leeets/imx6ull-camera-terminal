@@ -22,6 +22,14 @@ extern "C" {
  *********************/
 void ui_bridge_init(void);
 
+
+/*********************
+ * 实现无拷贝 更新预览帧
+ *********************/
+uint8_t *ui_bridge_preview_begin(int *w, int *h);
+void ui_bridge_preview_commit(void);
+
+
 /*********************
  * 预览帧更新回调（可在非主线程安全调用）
  *
@@ -29,6 +37,7 @@ void ui_bridge_init(void);
  * 内部通过 lv_async_call 切换到主线程更新 UI
  *********************/
 void ui_bridge_update_preview(const void *rgb565);
+
 
 /*********************
  * 相册导航接口

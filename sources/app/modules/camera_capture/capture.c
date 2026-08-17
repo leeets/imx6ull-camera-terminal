@@ -25,8 +25,9 @@
 #define PREVIEW_QUEUE_SIZE 4
 
 typedef struct {
-    void  *data;      /* malloc 拷贝的 MJPEG 帧数据 */
-    size_t length;
+    void  *data;      /* 改成池化缓冲：首次按帧大小分配，之后循环复用 */
+	size_t cap;       /* 增加：缓冲容量 */
+    size_t length;	  /* 当前帧长度 */
 } preview_queue_entry_t;
 
 static preview_queue_entry_t  g_preview_queue[PREVIEW_QUEUE_SIZE];
@@ -41,7 +42,10 @@ static capture_preview_cb_t   g_preview_cb  = NULL;
 static void                  *g_preview_ctx = NULL;
 static int                    g_preview_started = 0;
 
-/* V4L2 采集线程中调用 —— 只做将拿到的数据入队并通知preview，绝不阻塞 */
+/* V4L2 采集线程中被调用 —— 只做将拿到的数据入队并通知preview，绝不阻塞 */
+/* 修改：目前是每帧malloc +  memcpy MJPEG，容易延迟大。
+*  改成：固定缓冲池（比如 4 个槽位循环复用），消除每帧的 malloc/free 和拷贝：
+*/
 static void preview_bridge(const hal_camera_frame_t *frame, void *user_data) {
     (void)user_data;
 
@@ -54,21 +58,28 @@ static void preview_bridge(const hal_camera_frame_t *frame, void *user_data) {
         return;
     }
 
-    /* 用entry拷贝 MJPEG 帧数据（frame就是帧数据结构体,frame->data 是 mmap 缓冲区，必须尽快归还 QBUF） */
-    preview_queue_entry_t *entry = &g_preview_queue[g_preview_head];	// 放进队列！preview线程出队用。
-    entry->data = malloc(frame->length);
-    //printf("入队+1\n");
-    if (entry->data) {
-        memcpy(entry->data, frame->data, frame->length);	//entry拿到采集线程的帧数据
-        entry->length = frame->length;
-        g_preview_head = next;
+	/* 修改：槽位容量不足才扩容；命中缓存后只有 memcpy，无 malloc/free */
+    if (frame->length > entry->cap) {
+        void *nb = realloc(entry->data, frame->length);	//新部分不初始化，用于调整已分配内存大小
+        if (!nb) {
+            pthread_mutex_unlock(&g_preview_mutex);   /* 旧缓冲仍有效，丢这一帧 */
+            return;
+        }
+        entry->data = nb;
+        entry->cap  = frame->length;
     }
+
+    /* V4L2 mmap 缓冲必须尽快 QBUF 归还，这层 memcpy 无法省去 */
+    memcpy(entry->data, frame->data, frame->length);
+    entry->length = frame->length;
+    g_preview_head = next;
 
     pthread_cond_signal(&g_preview_cond);	//采集做好了，并且入队好了。通知preview线程预览
     pthread_mutex_unlock(&g_preview_mutex);
 }
 
-/* 预览视频 工作线程：从队列取出帧，调用用户的 preview_cb */
+/* 预览视频 工作线程：从队列取出帧，调用用户的 preview_cb(on_preview_frame()) */
+/* 修改：出队部分改为“归还槽位、不释放缓冲”，并删除原来的 free(frame_data) */
 static void *preview_worker_thread(void *arg) {
     (void)arg;
 
@@ -88,13 +99,12 @@ static void *preview_worker_thread(void *arg) {
         //printf("出队+1\n");
         void  *frame_data = entry->data;
         size_t frame_len  = entry->length;
-        entry->data   = NULL;
-        entry->length = 0;
+		entry->length = 0;							/* 槽位归还池中，缓冲数据保留复用 */
         g_preview_tail = (g_preview_tail + 1) % PREVIEW_QUEUE_SIZE;	//环形
 
         pthread_mutex_unlock(&g_preview_mutex);
 
-        /* ---- 以下代码在独立工作线程运行，不阻塞 V4L2 采集线程 ---- */
+        /* ---- 以下用户回调代码在独立工作线程运行，不阻塞 V4L2 采集线程 ---- */
         if (g_preview_cb && frame_data) {
             hal_camera_frame_t tmp_frame;
             memset(&tmp_frame, 0, sizeof(tmp_frame));
@@ -103,15 +113,21 @@ static void *preview_worker_thread(void *arg) {
             g_preview_cb(&tmp_frame, g_preview_ctx);
         }
 
-        free(frame_data);
+        //free(frame_data);
     }
 
-    /* 退出前清理preview队列中残留的帧 */
+    /* 退出前清理preview队列中残留的帧---修改：把原来的“释放全部残留帧”改成“释放 4 个池槽位”： */
     pthread_mutex_lock(&g_preview_mutex);
-    while (g_preview_tail != g_preview_head) {
+   /* while (g_preview_tail != g_preview_head) {
         free(g_preview_queue[g_preview_tail].data);
         g_preview_queue[g_preview_tail].data = NULL;
         g_preview_tail = (g_preview_tail + 1) % PREVIEW_QUEUE_SIZE;
+    }
+    */
+	for (int i = 0; i < PREVIEW_QUEUE_SIZE; i++) {
+        free(g_preview_queue[i].data);
+        g_preview_queue[i].data = NULL;
+        g_preview_queue[i].cap  = 0;
     }
     pthread_mutex_unlock(&g_preview_mutex);
 

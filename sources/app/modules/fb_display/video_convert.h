@@ -18,7 +18,7 @@ int yuyv_to_rgb565(const void *src, void *dst, int width, int height);
  * height:   目标高度
  * 返回 0 成功，-1 解码失败
  */
-int mjpeg_to_rgb565(const void *src, size_t src_len,
+int mjpeg_to_argb8888(const void *src, size_t src_len,
                     void *dst, int width, int height);
 
 /* RGB565 转 RGB888 (可选，后续 LVGL 可能需要) */
