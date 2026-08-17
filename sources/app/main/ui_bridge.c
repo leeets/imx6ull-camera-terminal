@@ -25,6 +25,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <setjmp.h>
+#include <stdint.h>
+#include <jpeglib.h>
 
 /*********************
  *      DEFINES
@@ -46,6 +49,14 @@ static char   **g_photo_paths   = NULL;
 static int      g_photo_count   = 0;
 static int      g_photo_current = 0;
 
+/* 相册预览解码（修复：LVGL 8.3 未开启 FS/JPEG 解码，文件路径无法显示照片，
+ * 改用 libjpeg 解码成 32bpp 缓冲区后以 LV_IMG_SRC_VARIABLE 方式显示）。
+ * 注意：LVGL 只保存图片数据指针而不拷贝，因此这两个对象必须常驻程序生命周期，
+ * 不能是栈上局部变量，也不能在翻页时提前释放。 */
+static lv_img_dsc_t g_photo_dsc;
+static uint8_t     *g_photo_buf = NULL;
+static size_t       g_photo_buf_cap = 0;
+
 /**********************
  *  STATIC PROTOTYPES 前向声明，先声明在使用！
  **********************/
@@ -54,6 +65,7 @@ static void refresh_status_labels(void);
 static void load_photo_list(void);
 static void free_photo_list(void);
 static void show_current_photo(void);
+static int  decode_photo_to_dsc(const char *path);
 
 /* 预览帧更新（在 LVGL 主线程中执行）*/
 static void async_update_preview(void *user_data);
@@ -186,6 +198,107 @@ static void free_photo_list(void)
     g_photo_count = 0;
 }
 
+/* ==================== 相册照片 JPEG 解码（修复） ==================== */
+/* libjpeg 错误处理：出错时 longjmp 回到解码函数统一出口释放资源，
+ * 避免在错误路径上泄漏文件句柄和解压对象（遵循项目规范）。 */
+typedef struct {
+    struct jpeg_error_mgr pub;
+    jmp_buf setjmp_buf;
+} ui_bridge_jpeg_err_t;
+
+static void ui_bridge_jpeg_error_exit(j_common_ptr cinfo)
+{
+    ui_bridge_jpeg_err_t *err = (ui_bridge_jpeg_err_t *)cinfo->err;
+    (*cinfo->err->output_message)(cinfo);
+    longjmp(err->setjmp_buf, 1);
+}
+
+/* 解码 JPEG 文件到 32bpp（内存序 B,G,R,A）缓冲区并填充 g_photo_dsc。
+ * 返回 0 成功，-1 失败。失败原因：文件打不开、JPEG 损坏、内存不足。 */
+static int decode_photo_to_dsc(const char *path)
+{
+    FILE *fp = NULL;
+    struct jpeg_decompress_struct cinfo;
+    ui_bridge_jpeg_err_t jerr;
+    unsigned char *row_rgb = NULL;
+    int ret = -1;
+
+    if (!path) return -1;
+
+    fp = fopen(path, "rb");
+    if (!fp) {
+        fprintf(stderr, "[UI_BRIDGE] 打开照片失败: %s\n", path);
+        return -1;
+    }
+
+    cinfo.err = jpeg_std_error(&jerr.pub);
+    jerr.pub.error_exit = ui_bridge_jpeg_error_exit;
+    if (setjmp(jerr.setjmp_buf))
+        goto out;   /* 解码过程出错，跳过 finish，直接销毁解压对象 */
+
+    jpeg_create_decompress(&cinfo);
+    jpeg_stdio_src(&cinfo, fp);
+
+    if (jpeg_read_header(&cinfo, TRUE) != JPEG_HEADER_OK)
+        goto out;   /* 头解析失败，未开始解压，不能调用 finish */
+
+    cinfo.out_color_space = JCS_RGB;
+    jpeg_start_decompress(&cinfo);
+
+    {
+        int w = (int)cinfo.output_width;
+        int h = (int)cinfo.output_height;
+        size_t need;
+
+        if (w <= 0 || h <= 0)
+            goto out_dec;
+
+        need = (size_t)w * h * 4;   /* LV_COLOR_DEPTH=32，每像素 4 字节 */
+        if (need > g_photo_buf_cap) {
+            uint8_t *nb = realloc(g_photo_buf, need);
+            if (!nb) goto out_dec;   /* realloc 失败时旧缓冲仍有效 */
+            g_photo_buf = nb;
+            g_photo_buf_cap = need;
+        }
+
+        row_rgb = malloc((size_t)w * cinfo.output_components);
+        if (!row_rgb) goto out_dec;
+
+        while (cinfo.output_scanline < cinfo.output_height) {
+            unsigned char *rows[1] = { row_rgb };
+            jpeg_read_scanlines(&cinfo, rows, 1);
+
+            /* JCS_RGB 每像素 3 字节，转换为 LVGL 32bpp 的 B,G,R,A 排列 */
+            uint8_t *dst = g_photo_buf + (size_t)(cinfo.output_scanline - 1) * w * 4;
+            for (int x = 0; x < w; x++) {
+                dst[x * 4 + 0] = row_rgb[x * 3 + 2];   /* B */
+                dst[x * 4 + 1] = row_rgb[x * 3 + 1];   /* G */
+                dst[x * 4 + 2] = row_rgb[x * 3 + 0];   /* R */
+                dst[x * 4 + 3] = 0xFF;                 /* A */
+            }
+        }
+
+        /* 填充图像描述符：数据指针指向常驻的 g_photo_buf */
+        memset(&g_photo_dsc, 0, sizeof(g_photo_dsc));
+        g_photo_dsc.header.always_zero = 0;
+        g_photo_dsc.header.w = w;
+        g_photo_dsc.header.h = h;
+        g_photo_dsc.header.cf = LV_IMG_CF_TRUE_COLOR;
+        g_photo_dsc.data_size = need;
+        g_photo_dsc.data = g_photo_buf;
+
+        ret = 0;
+    }
+
+out_dec:
+    jpeg_finish_decompress(&cinfo);
+out:
+    jpeg_destroy_decompress(&cinfo);
+    if (row_rgb) free(row_rgb);
+    if (fp) fclose(fp);
+    return ret;
+}
+
 /* 显示当前照片 */
 static void show_current_photo(void)
 {
@@ -195,8 +308,15 @@ static void show_current_photo(void)
         return;
     }
 
-    /* 从文件加载 JPEG 并设置到图像控件 */
-    lv_img_set_src(ui_imgPhotoPreview, g_photo_paths[g_photo_current]);
+    /* 修复：LVGL 8.3 无法直接加载 JPEG 文件路径（FS/SJPG 均未开启），
+     * 改为 libjpeg 解码后以图像描述符方式显示，翻页时重新解码当前照片 */
+    if (decode_photo_to_dsc(g_photo_paths[g_photo_current]) == 0) {
+        lv_img_set_src(ui_imgPhotoPreview, &g_photo_dsc);
+    } else {
+        lv_img_set_src(ui_imgPhotoPreview, NULL);
+        lv_label_set_text(ui_lblPhotoInfo, "加载失败");
+        return;
+    }
 
     /* 更新照片信息标签 */
     char info[32];
