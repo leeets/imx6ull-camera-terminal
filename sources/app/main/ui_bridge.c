@@ -146,17 +146,18 @@ static void async_update_preview(void *user_data)
         g_preview_img = ui_ImgPreview;
     }
 
-    /* 数据已在回调触发前拷贝到 g_preview_buf，直接使用 */
-    lv_img_dsc_t img_dsc;
+    /* 数据已在回调触发前拷贝到 g_preview_buf，直接使用。
+     * 修复：LVGL 只保存图像描述符指针而不拷贝，必须 static 常驻，
+     * 否则函数返回后指针悬垂，预览会花屏或消失。 */
+    static lv_img_dsc_t img_dsc;
     memset(&img_dsc, 0, sizeof(img_dsc));
     img_dsc.header.always_zero = 0;
     img_dsc.header.w = PREVIEW_W;
     img_dsc.header.h = PREVIEW_H;
     img_dsc.header.cf = LV_IMG_CF_TRUE_COLOR;
-    img_dsc.data_size = PREVIEW_W * PREVIEW_H * 2;
+    img_dsc.data_size = PREVIEW_W * PREVIEW_H * 4;   /* 修复：LV_COLOR_DEPTH=32，每像素 4 字节 */
     img_dsc.data = (const uint8_t *)g_preview_buf;
 
-	lv_img_set_zoom(g_preview_img, 256 * LV_HOR_RES_MAX / PREVIEW_W); // 256*1024/640 ≈ 410缩放图像即可
     lv_img_set_src(g_preview_img, &img_dsc);
     g_preview_pending = 0;
 }
@@ -167,8 +168,20 @@ void ui_bridge_update_preview(const void *rgb565)
     /* 上次更新尚未完成则跳过，防积压 */
     if (g_preview_pending) return;
 
-    /* 立即拷贝到自有缓冲区（采集线程中执行，但拷贝是原子的）*/
-    memcpy(g_preview_buf, rgb565, PREVIEW_W * PREVIEW_H * 2);
+    /* 修复：采集线程给的是 RGB565（2 字节/像素），而 LVGL 是 32bpp，
+     * 直接 memcpy 格式/长度都不对，必须逐像素转换成 B,G,R,A 后存入自有缓冲
+     * （转换在采集线程执行，g_preview_pending 保证主线程不会同时读写）。 */
+    const uint16_t *src = (const uint16_t *)rgb565;
+    for (int i = 0; i < PREVIEW_W * PREVIEW_H; i++) {
+        uint16_t p = src[i];
+        uint8_t r = ((p >> 11) & 0x1f);  r = (r << 3) | (r >> 2);
+        uint8_t g = ((p >> 5)  & 0x3f);  g = (g << 2) | (g >> 6);
+        uint8_t b = (p & 0x1f);          b = (b << 3) | (b >> 2);
+        g_preview_buf[i].ch.blue  = b;
+        g_preview_buf[i].ch.green = g;
+        g_preview_buf[i].ch.red   = r;
+        g_preview_buf[i].ch.alpha = 0xff;
+    }
     g_preview_pending = 1;
 
     /* 通过 lv_async_call 切换到主线程更新 ui_ImgPreview */
