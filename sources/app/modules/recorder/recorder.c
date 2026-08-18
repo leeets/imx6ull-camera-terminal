@@ -495,7 +495,10 @@ int recorder_stop(void) {
     off_t cur = lseek(g_fd, 0, SEEK_CUR);
 
     uint32_t movi_size = (uint32_t)(cur - g_movi_offset - 8);
-    lseek(g_fd, g_movi_offset, SEEK_SET);
+    /* 修复：movi 块布局是 "LIST"(4) + size(4) + "movi"(4) + 帧数据，
+     * size 字段在 g_movi_offset+4 处；原来写到 g_movi_offset 会覆盖 "LIST"，
+     * 导致解析器把下一处 "00dc" 误读成 movi 大小（1667510320）。 */
+    lseek(g_fd, g_movi_offset + 4, SEEK_SET);
     write_all(g_fd, &movi_size, 4);
     lseek(g_fd, cur, SEEK_SET);
 
