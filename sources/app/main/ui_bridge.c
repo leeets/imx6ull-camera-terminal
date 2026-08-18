@@ -197,7 +197,7 @@ static void async_update_preview(void *user_data)
     img_dsc.data = (const uint8_t *)g_preview_buf[g_preview_show];
     pthread_mutex_unlock(&g_preview_mtx);
     
-    lv_img_set_zoom(g_preview_img, 256 * LV_HOR_RES_MAX / PREVIEW_W); //缩放640×480 放大为 1024×768，铺满屏幕
+    //lv_img_set_zoom(g_preview_img, 256 * LV_HOR_RES_MAX / PREVIEW_W); //缩放640×480 放大为 1024×768，铺满屏幕(增大延迟)
     lv_img_set_src(g_preview_img, &img_dsc);
     g_preview_pending = 0;
 }
