@@ -58,28 +58,28 @@ void ui_ScreenMain_screen_init(void)
     ui_LabelNet = lv_label_create(ui_Container);
     lv_obj_set_width(ui_LabelNet, LV_SIZE_CONTENT);   /// 1
     lv_obj_set_height(ui_LabelNet, LV_SIZE_CONTENT);    /// 1
-    lv_obj_set_x(ui_LabelNet, -77);
+    lv_obj_set_x(ui_LabelNet, -38);
     lv_obj_set_y(ui_LabelNet, -52);
     lv_obj_set_align(ui_LabelNet, LV_ALIGN_CENTER);
 
     ui_LabelRecStatus = lv_label_create(ui_Container);
     lv_obj_set_width(ui_LabelRecStatus, LV_SIZE_CONTENT);   /// 1
     lv_obj_set_height(ui_LabelRecStatus, LV_SIZE_CONTENT);    /// 1
-    lv_obj_set_x(ui_LabelRecStatus, -79);
+    lv_obj_set_x(ui_LabelRecStatus, -38);
     lv_obj_set_y(ui_LabelRecStatus, -14);
     lv_obj_set_align(ui_LabelRecStatus, LV_ALIGN_CENTER);
 
     ui_LabelStorage = lv_label_create(ui_Container);
     lv_obj_set_width(ui_LabelStorage, LV_SIZE_CONTENT);   /// 1
     lv_obj_set_height(ui_LabelStorage, LV_SIZE_CONTENT);    /// 1
-    lv_obj_set_x(ui_LabelStorage, -78);
+    lv_obj_set_x(ui_LabelStorage, -38);
     lv_obj_set_y(ui_LabelStorage, 20);
     lv_obj_set_align(ui_LabelStorage, LV_ALIGN_CENTER);
 
     ui_LabelGps = lv_label_create(ui_Container);
     lv_obj_set_width(ui_LabelGps, LV_SIZE_CONTENT);   /// 1
     lv_obj_set_height(ui_LabelGps, LV_SIZE_CONTENT);    /// 1
-    lv_obj_set_x(ui_LabelGps, -78);
+    lv_obj_set_x(ui_LabelGps, -38);
     lv_obj_set_y(ui_LabelGps, 55);
     lv_obj_set_align(ui_LabelGps, LV_ALIGN_CENTER);
 
