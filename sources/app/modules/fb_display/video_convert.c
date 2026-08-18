@@ -80,7 +80,7 @@ int mjpeg_to_argb8888(const void *src, size_t src_len,
     jpeg_read_header(&cinfo, TRUE);
 	/* 修改：为了减小延迟，640x480 → 320x240：libjpeg IDCT 快速缩放，解码量约 1/4 */
 	cinfo.scale_num = 1;
-    cinfo.scale_den = 2;
+    cinfo.scale_denom = 2;
 
     /* 输出 RGB888，直出ARGB */
     cinfo.out_color_space = JCS_RGB;

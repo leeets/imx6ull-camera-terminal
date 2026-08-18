@@ -217,10 +217,10 @@ void ui_bridge_update_preview(const void *rgb565)
         uint8_t r = ((p >> 11) & 0x1f);  r = (r << 3) | (r >> 2);
         uint8_t g = ((p >> 5)  & 0x3f);  g = (g << 2) | (g >> 6);
         uint8_t b = (p & 0x1f);          b = (b << 3) | (b >> 2);
-        g_preview_buf[i].ch.blue  = b;
-        g_preview_buf[i].ch.green = g;
-        g_preview_buf[i].ch.red   = r;
-        g_preview_buf[i].ch.alpha = 0xff;
+        g_preview_buf[i]->ch.blue  = b;
+        g_preview_buf[i]->ch.green = g;
+        g_preview_buf[i]->ch.red   = r;
+        g_preview_buf[i]->ch.alpha = 0xff;
     }
     g_preview_pending = 1;
 

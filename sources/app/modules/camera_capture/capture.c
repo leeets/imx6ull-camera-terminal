@@ -58,6 +58,9 @@ static void preview_bridge(const hal_camera_frame_t *frame, void *user_data) {
         return;
     }
 
+    /* 用entry拷贝 MJPEG 帧数据（frame就是帧数据结构体,frame->data 是 mmap 缓冲区，必须尽快归还 QBUF） */
+    preview_queue_entry_t *entry = &g_preview_queue[g_preview_head];    // 放进队列！preview线程出队用。
+
 	/* 修改：槽位容量不足才扩容；命中缓存后只有 memcpy，无 malloc/free */
     if (frame->length > entry->cap) {
         void *nb = realloc(entry->data, frame->length);	//新部分不初始化，用于调整已分配内存大小
