@@ -60,7 +60,7 @@ PORT_SRCS   := $(wildcard $(PORT_DIR)/*.c)
 UI_BRIDGE_SRCS := $(wildcard $(MAIN_DIR)/ui_bridge.c)
 
 APP_SRCS    := $(HAL_SRCS) $(MOD_SRCS) $(MAIN_SRCS) $(LVGL_SRC) $(UI_APP_SRCS) $(PORT_SRCS) $(UI_BRIDGE_SRCS)
-# ---- 编译器标志 ----
+# ---- 编译器标志（头文件路径）/ 链接器标志（动态库路径） ----
 CFLAGS      := -Wall \
 	-I$(HAL_DIR) \
 	-I$(MAIN_DIR) \
@@ -74,7 +74,8 @@ CFLAGS      := -Wall \
 	-I$(APP_DIR)/common/ipc -I$(APP_DIR)/common/utils -I$(UI_DIR) -I$(LVGL_DIR) -I$(PORT_DIR) -I$(UI_DIR)/app
 LDFLAGS     := -lpthread -lrt -ljpeg -lm
 
-# ---- 目标文件 ----
+# ---- 目标文件camera_terminal / 生成目标文件路径列表（仅仅是字符串替换） ----
+# ---- APP_OBJS 不是用来“接收”编译结果的容器，而是用来触发编译过程的目标清单，是目标，是编译器的输入 ----
 APP_TARGET  := $(OUTPUT_DIR)/camera_terminal
 APP_OBJS    := $(patsubst $(HAL_DIR)/%.c, $(BUILD_DIR)/$(HAL_DIR)/%.o, $(HAL_SRCS))
 APP_OBJS    += $(patsubst $(MOD_DIR)/key_manager/%.c, $(BUILD_DIR)/$(MOD_DIR)/key_manager/%.o, $(wildcard $(MOD_DIR)/key_manager/*.c))
@@ -93,7 +94,7 @@ APP_OBJS    += $(patsubst $(MAIN_DIR)/ui_bridge.c, $(BUILD_DIR)/$(MAIN_DIR)/ui_b
 APP_OBJS    += $(patsubst $(MOD_DIR)/mqtt_client/%.c, $(BUILD_DIR)/$(MOD_DIR)/mqtt_client/%.o, $(wildcard $(MOD_DIR)/mqtt_client/*.c))
 
 
-# ---- 默认目标 ----
+# ---- 默认（最终）目标 ----
 .PHONY: all
 all: drivers apps
 
