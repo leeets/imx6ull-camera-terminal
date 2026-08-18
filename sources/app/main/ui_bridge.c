@@ -1,4 +1,4 @@
-﻿/**
+/**
  * ui_bridge.c - UI 事件桥接层实现
  *
  * 功能:
@@ -142,9 +142,13 @@ static void status_timer_cb(lv_timer_t *timer)
     refresh_status_labels();
 }
 
-/* 修改为双缓冲 + 锁：增加ui_bridge_preview_begin/commit函数，更改async_update_preview更新逻辑 */
+/* 
+* 修改为双缓冲 + 锁：增加ui_bridge_preview_begin/commit函数，更改async_update_preview更新逻辑 
+* 目的：
+* 消除每帧 307,200 次的 RGB565→ARGB 逐像素转换和中间缓冲拷贝，让采集线程只解码一次、主线程只换指针，降低预览延迟和 CPU 占用
+*/
 
-/* 采集线程调用：返回一块“空闲”缓冲供解码直写（无拷贝），写满后再更新预览帧 commit */
+/* 采集线程调用begin给缓冲：返回一块“空闲”缓冲供解码直写（无拷贝），写满后再更新预览帧 commit 通知完成*/
 uint8_t *ui_bridge_preview_begin(int *w, int *h)
 {
     if (g_preview_pending) return NULL;      /* 上一帧还没显示，丢帧 */
@@ -200,32 +204,6 @@ static void async_update_preview(void *user_data)
     //lv_img_set_zoom(g_preview_img, 256 * LV_HOR_RES_MAX / PREVIEW_W); //缩放640×480 放大为 1024×768，铺满屏幕(增大延迟)
     lv_img_set_src(g_preview_img, &img_dsc);
     g_preview_pending = 0;
-}
-
-/* 被main的on_preview_frame() 回调接口，实现用LVGL来实现帧预览： */
-void ui_bridge_update_preview(const void *rgb565)
-{
-    /* 上次更新尚未完成则跳过，防积压 */
-    if (g_preview_pending) return;
-
-    /* 修复：采集线程给的是 RGB565（2 字节/像素），而 LVGL 是 32bpp，
-     * 直接 memcpy 格式/长度都不对，必须逐像素转换成 B,G,R,A 后存入自有缓冲
-     * （转换在采集线程执行，g_preview_pending 保证主线程不会同时读写）。 */
-    const uint16_t *src = (const uint16_t *)rgb565;
-    for (int i = 0; i < PREVIEW_W * PREVIEW_H; i++) {
-        uint16_t p = src[i];
-        uint8_t r = ((p >> 11) & 0x1f);  r = (r << 3) | (r >> 2);
-        uint8_t g = ((p >> 5)  & 0x3f);  g = (g << 2) | (g >> 6);
-        uint8_t b = (p & 0x1f);          b = (b << 3) | (b >> 2);
-        g_preview_buf[i]->ch.blue  = b;
-        g_preview_buf[i]->ch.green = g;
-        g_preview_buf[i]->ch.red   = r;
-        g_preview_buf[i]->ch.alpha = 0xff;
-    }
-    g_preview_pending = 1;
-
-    /* 通过 lv_async_call 切换到主线程更新 ui_ImgPreview */
-    lv_async_call(async_update_preview, NULL);
 }
 
 /**********************
