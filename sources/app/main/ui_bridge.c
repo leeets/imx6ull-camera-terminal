@@ -357,10 +357,14 @@ static void show_current_photo(void)
         return;
     }
 
-    /* 更新照片信息标签 */
+    /* 更新照片信息标签  */
     char info[32];
     snprintf(info, sizeof(info), "%d / %d", g_photo_current + 1, g_photo_count);
     lv_label_set_text(ui_lblPhotoInfo, info);
+
+    /* 修复：相册活动时直接局部重绘照片区会花屏（全屏重绘正常），
+       * 强制整屏失效，让 LVGL 走和"重新进入相册"相同的完整重绘路径 */
+      lv_obj_invalidate(ui_ScreenAlbum);
 }
 
 void ui_bridge_album_prev(void)

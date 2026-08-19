@@ -191,8 +191,15 @@ fail:
 int hal_camera_start(hal_camera_callback_t cb, void *user_data) {
     enum v4l2_buf_type type;
     if (g_fd < 0 || g_streaming) return -1;
-    if (request_buffers(4) < 0) return -1;
-    if (queue_all_buffers() < 0) return -1;
+
+    /* 修复：缓冲已存在则直接复用，不再 REQBUFS——
+     * 该驱动在 munmap 后缓冲仍被视为 in use，重复 REQBUFS 返回 EBUSY，
+     * 导致相册 back 后无法重启采集（预览冻结）。 */
+    if (!g_bufs) {
+          if (request_buffers(4) < 0) return -1;
+      }
+
+      if (queue_all_buffers() < 0) return -1;
 
     g_frame_cb  = cb;		//这里注册的是preview_bridge(只做入队g_preview_queue)
     g_frame_ctx = user_data;
