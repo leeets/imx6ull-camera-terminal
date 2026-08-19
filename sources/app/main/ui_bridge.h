@@ -17,11 +17,15 @@
 extern "C" {
 #endif
 
+#include "capture.h"          /* capture_preview_cb_t 类型、提供capture_stop等函数 */
+
 /*********************
  * 初始化
  *********************/
 void ui_bridge_init(void);
 
+/* 把on_preview_frame回调注册进来（解决 on_preview_frame 访问问题） */
+void ui_bridge_set_preview_cb(capture_preview_cb_t cb);
 
 /*********************
  * 实现无拷贝 更新预览帧

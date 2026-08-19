@@ -46,6 +46,7 @@ static lv_obj_t *g_preview_img = NULL;
 #define PREVIEW_H  240		//预览帧改成320*240新尺寸，会减小延迟。后续的zoom、写帧等都不用改，自适应尺寸
 #define PREVIEW_BYTES (PREVIEW_W * PREVIEW_H * 4)
 
+static capture_preview_cb_t g_preview_cb = NULL;/* 回调main的on_preview_frame用 */
 static lv_color_t g_preview_buf[2][PREVIEW_W * PREVIEW_H];
 static pthread_mutex_t g_preview_mtx = PTHREAD_MUTEX_INITIALIZER;
 static int  g_preview_show = 0;              /* 当前给 LVGL 显示的缓冲索引 */
@@ -74,6 +75,11 @@ static void free_photo_list(void);
 static void show_current_photo(void);
 static int  decode_photo_to_dsc(const char *path);
 
+/* 注册回调，解决 on_preview_frame 访问问题 */
+void ui_bridge_set_preview_cb(capture_preview_cb_t cb)
+{
+    g_preview_cb = cb;
+}
 
 /* 预览帧更新（在 LVGL 主线程中执行）*/
 static void async_update_preview(void *user_data);
@@ -333,9 +339,11 @@ out:
 /* 显示当前照片 */
 static void show_current_photo(void)
 {
+    //lv_obj_add_flag(ui_imgPhotoPreview, LV_OBJ_FLAG_HIDDEN);   /* 临时测试：隐藏照片控件 */
+    
     if (g_photo_count <= 0 || !g_photo_paths || !g_photo_paths[g_photo_current]) {
         lv_img_set_src(ui_imgPhotoPreview, NULL);
-        lv_label_set_text(ui_lblPhotoInfo, "无照片");
+        lv_label_set_text(ui_lblPhotoInfo, "no photos");
         return;
     }
 
@@ -345,7 +353,7 @@ static void show_current_photo(void)
         lv_img_set_src(ui_imgPhotoPreview, &g_photo_dsc);
     } else {
         lv_img_set_src(ui_imgPhotoPreview, NULL);
-        lv_label_set_text(ui_lblPhotoInfo, "加载失败");
+        lv_label_set_text(ui_lblPhotoInfo, "loading failed");
         return;
     }
 
@@ -389,6 +397,7 @@ void ui_bridge_album_back(void)
 
 void ui_bridge_show_album(void)
 {
+    capture_stop();          /* 进相册：停止预览采集（capture.c 已有，幂等，安全） */
     load_photo_list();
     show_current_photo();
     _ui_screen_change(&ui_ScreenAlbum, LV_SCR_LOAD_ANIM_NONE, 0, 0,
@@ -401,6 +410,9 @@ void ui_bridge_show_main(void)
     free_photo_list();
     _ui_screen_change(&ui_ScreenMain, LV_SCR_LOAD_ANIM_NONE, 0, 0,
                       ui_ScreenMain_screen_init);
+
+    if (g_preview_cb)
+          capture_start_preview(g_preview_cb, NULL);   /* 出相册：恢复预览 */
 }
 
 /**********************

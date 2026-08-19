@@ -255,18 +255,20 @@ out:
     return ret;
 }
 /*停止视频流*/
+/* 修改：
+* 删掉 free_buffers()——缓冲不释放，重启时 request_buffers 的 REQBUFS(4) 对已分配的 4 个缓冲是复用（vb2 返回成功），程序退出
+* close(fd) 时驱动自动释放
+*/
 void hal_camera_stop(void) {
-    printf("[HAL_CAM] stop: g_streaming=%d\n", g_streaming);
     enum v4l2_buf_type type;
     if (!g_streaming) return;
     g_streaming = 0;
     if (g_thread_running) { pthread_join(g_capture_thread, NULL); g_thread_running = 0; }
     type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
-    if (ioctl(g_fd, VIDIOC_STREAMOFF, &type) < 0)
-      perror("[HAL_CAM] STREAMOFF");
-    else
-      printf("[HAL_CAM] STREAMOFF ok\n");
-    free_buffers();
+    ioctl(g_fd, VIDIOC_STREAMOFF, &type);
+      /* 修复：该驱动 STREAMOFF 后 REQBUFS(0) 仍返回 EBUSY，
+       * 不释放缓冲，重启时复用；fd 关闭时由驱动自动释放 */
+      // free_buffers();
 }
 
 void hal_camera_exit(void) {

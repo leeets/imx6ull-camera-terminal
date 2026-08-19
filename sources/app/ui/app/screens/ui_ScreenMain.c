@@ -65,14 +65,14 @@ void ui_ScreenMain_screen_init(void)
     ui_LabelRecStatus = lv_label_create(ui_Container);
     lv_obj_set_width(ui_LabelRecStatus, LV_SIZE_CONTENT);   /// 1
     lv_obj_set_height(ui_LabelRecStatus, LV_SIZE_CONTENT);    /// 1
-    lv_obj_set_x(ui_LabelRecStatus, -38);
+    lv_obj_set_x(ui_LabelRecStatus, -39);
     lv_obj_set_y(ui_LabelRecStatus, -14);
     lv_obj_set_align(ui_LabelRecStatus, LV_ALIGN_CENTER);
 
     ui_LabelStorage = lv_label_create(ui_Container);
     lv_obj_set_width(ui_LabelStorage, LV_SIZE_CONTENT);   /// 1
     lv_obj_set_height(ui_LabelStorage, LV_SIZE_CONTENT);    /// 1
-    lv_obj_set_x(ui_LabelStorage, -38);
+    lv_obj_set_x(ui_LabelStorage, -36);
     lv_obj_set_y(ui_LabelStorage, 20);
     lv_obj_set_align(ui_LabelStorage, LV_ALIGN_CENTER);
 

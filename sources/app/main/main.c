@@ -179,6 +179,7 @@ static int init_all(const char *cam_dev) {
     lv_port_indev_init();	//输入移植功能  (设置类型参数 + pointer_read读触摸屏按下事件交给LVGL)
     ui_init();				//初始化UI显示
     ui_bridge_init();		//UI 桥接初始化-注册按钮事件回调
+    ui_bridge_set_preview_cb(on_preview_frame);  //ui_bridge要注册回调进去，不然不能用！
 
     /* 5. Recorder（只设参数，不启动）*/
     recorder_init(640, 480, 15);
