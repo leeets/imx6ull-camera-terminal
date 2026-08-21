@@ -54,3 +54,6 @@ sources/driver/gpio-keys/built-in.o
 sources/app/modules/key_manager/button_test.c
 sources/driver/gpio-keys/gpio_key_drv.mod.c
 sources/app/modules/key_manager/button_test.c
+
+# Other
+can_new_project_design.md
