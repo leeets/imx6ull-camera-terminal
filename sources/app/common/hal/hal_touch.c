@@ -35,6 +35,9 @@ int hal_touch_init(const char *dev_path)
         return -1;
     }
 
+    if (g_touch_fd >= 0)
+        return 0;   /* 已打开：热插拔重连时防止重复 open 泄漏 fd */
+
     g_touch_fd = open(dev_path, O_RDWR | O_NONBLOCK);//打开设备，读写 非阻塞
     if (g_touch_fd < 0) {
         fprintf(stderr, "[HAL_TOUCH] 打开 %s 失败: %s\n",
@@ -44,6 +47,27 @@ int hal_touch_init(const char *dev_path)
     printf("[HAL_TOUCH] 已打开 %s (fd=%d)\n", dev_path, g_touch_fd);
 
     return 0;
+}
+
+/* 热插拔二级确认：打开设备节点并 ioctl(EVIOCGID) 确认 input 设备就绪。
+ * 使用独立 fd 探测，不占用 g_touch_fd，避免与读取线程冲突。 */
+int hal_touch_try_connect(const char *dev_path)
+{
+    struct input_id id;
+    int fd;
+    int ret;
+
+    if (!dev_path)
+        return -1;
+
+    fd = open(dev_path, O_RDWR);
+    if (fd < 0)
+        return -1;   /* 节点刚出现但驱动未就绪 */
+
+    ret = ioctl(fd, EVIOCGID, &id);
+    close(fd);
+
+    return ret < 0 ? -1 : 0;
 }
 
 /*读一次事件，之后被lv_port_indev集成调用，来读取触摸*/

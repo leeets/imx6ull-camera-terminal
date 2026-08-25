@@ -186,6 +186,32 @@ fail:
     return -1;
 }
 
+/* 热插拔二级确认：打开设备节点并 ioctl 查询能力，确认驱动真正就绪。
+ * 只做探测，使用独立 fd，不占用 g_fd，避免与正在运行的采集线程冲突。 */
+int hal_camera_try_connect(const char *dev_path) {
+    struct v4l2_capability cap;
+    int fd;
+    int ret;
+
+    if (!dev_path)
+        return -1;
+
+    fd = open(dev_path, O_RDWR);
+    if (fd < 0)
+        return -1;   /* 节点刚出现但驱动未就绪，或权限不足 */
+
+    ret = ioctl(fd, VIDIOC_QUERYCAP, &cap);
+    close(fd);
+    if (ret < 0)
+        return -1;
+
+    /* 确认是视频采集设备，防止误匹配到其他 video 节点 */
+    if (!(cap.capabilities & V4L2_CAP_VIDEO_CAPTURE))
+        return -1;
+
+    return 0;
+}
+
 /* main调用capture的start采集，从而会调用此函数，启动视频流采集线程--
  * 线程再调用main的回调cb实现另外的功能，都是采集线程上下文 */
 int hal_camera_start(hal_camera_callback_t cb, void *user_data) {
@@ -281,4 +307,15 @@ void hal_camera_stop(void) {
 void hal_camera_exit(void) {
     hal_camera_stop();
     if (g_fd >= 0) { close(g_fd); g_fd = -1; }
+
+    /* 热插拔：设备已关闭，必须释放旧 mmap 缓冲；
+     * 否则重连后 hal_camera_start 会误判“缓冲已存在”而复用已失效的映射 */
+    if (g_bufs) {
+        for (int i = 0; i < g_nbufs; i++)
+            if (g_bufs[i].data && g_bufs[i].data != MAP_FAILED)
+                munmap(g_bufs[i].data, g_bufs[i].length);
+        free(g_bufs);
+        g_bufs = NULL;
+    }
+    g_nbufs = 0;
 }

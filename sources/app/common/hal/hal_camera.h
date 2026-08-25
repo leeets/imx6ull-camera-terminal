@@ -24,6 +24,8 @@ typedef struct {
 typedef void (*hal_camera_callback_t)(const hal_camera_frame_t *frame, void *user_data);
 
 int  hal_camera_init(const char *dev_path, hal_camera_params_t *params);
+/* 热插拔二级确认：open + QUERYCAP 探测设备是否真正可用（不占用内部 fd） */
+int  hal_camera_try_connect(const char *dev_path);
 int  hal_camera_start(hal_camera_callback_t cb, void *user_data);
 int  hal_camera_capture_one(hal_camera_frame_t *frame);
 void hal_camera_stop(void);

@@ -35,6 +35,12 @@ typedef struct {
 int hal_touch_init(const char *dev_path);
 
 /*
+ * 热插拔二级确认：open + EVIOCGID 探测 input 设备是否真正可用
+ * 返回 0 成功，-1 失败
+ */
+int hal_touch_try_connect(const char *dev_path);
+
+/*
  * 读取一个触摸事件（阻塞/非阻塞取决于 fd 模式）
  * out: 输出触摸事件结构体
  * 返回 1 成功，0 无事件（非阻塞模式），-1 错误

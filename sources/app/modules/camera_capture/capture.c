@@ -42,6 +42,9 @@ static capture_preview_cb_t   g_preview_cb  = NULL;
 static void                  *g_preview_ctx = NULL;
 static int                    g_preview_started = 0;
 
+/* 热插拔重连与相册进出会并发调用 start/stop，加锁保护启动状态 */
+static pthread_mutex_t        g_capture_mtx = PTHREAD_MUTEX_INITIALIZER;
+
 /* V4L2 采集线程中被调用 —— 只做将拿到的数据入队并通知preview，绝不阻塞 */
 /* 修改：目前是每帧malloc +  memcpy MJPEG，容易延迟大。
 *  改成：固定缓冲池（比如 4 个槽位循环复用），消除每帧的 malloc/free 和拷贝：
@@ -162,7 +165,11 @@ int capture_init(const char *dev_path, int width, int height) {
  *   1. pthread_create启动预览的工作线程（处理解码 + 显示 + 录制入队）
  *   2. 启动 V4L2 采集（采集线程只负责入队） */
 int capture_start_preview(capture_preview_cb_t cb, void *user_data) {
-    if (g_preview_started) return 0;
+    pthread_mutex_lock(&g_capture_mtx);
+    if (g_preview_started) {
+        pthread_mutex_unlock(&g_capture_mtx);
+        return 0;
+    }
 
     g_preview_cb  = cb;		//直接注册main给的回调函数
     g_preview_ctx = user_data;
@@ -174,6 +181,7 @@ int capture_start_preview(capture_preview_cb_t cb, void *user_data) {
     if (pthread_create(&g_worker_thread, NULL, preview_worker_thread, NULL) != 0) {
         perror("[CAPTURE] worker thread create");
         g_worker_running = 0;
+        pthread_mutex_unlock(&g_capture_mtx);
         return -1;
     }
 
@@ -182,11 +190,13 @@ int capture_start_preview(capture_preview_cb_t cb, void *user_data) {
         g_worker_running = 0;
         pthread_cond_signal(&g_preview_cond);	//通知线程
         pthread_join(g_worker_thread, NULL);	//回收线程
+        pthread_mutex_unlock(&g_capture_mtx);
         return -1;
     }
 
     g_preview_started = 1;
     printf("[CAPTURE] preview started\n");
+    pthread_mutex_unlock(&g_capture_mtx);
     return 0;
 }
 
@@ -222,7 +232,8 @@ int capture_take_photo(capture_photo_cb_t cb, void *user_data) {
       return 0;
 }
 
-void capture_stop(void) {
+/* 内部实现：停止工作线程 + V4L2 流（调用方须已持有 g_capture_mtx） */
+static void capture_stop_locked(void) {
     /* 先停工作线程再停 V4L2 */
     if (g_worker_running) {
         pthread_mutex_lock(&g_preview_mutex);
@@ -233,6 +244,28 @@ void capture_stop(void) {
     }
     hal_camera_stop();
     g_preview_started = 0;
+}
+
+void capture_stop(void) {
+    pthread_mutex_lock(&g_capture_mtx);
+    capture_stop_locked();
+    pthread_mutex_unlock(&g_capture_mtx);
+}
+
+/* 热插拔重连：设备拔出后旧 fd 已失效，必须 close 重新 init。
+ * 在锁外执行 init/start，期间若有其他线程 start（如相册返回），
+ * 会因旧 fd 已关闭而失败返回，随后本次重连的 init + start 完成恢复。 */
+int capture_restart_preview(const char *dev_path, int width, int height) {
+    pthread_mutex_lock(&g_capture_mtx);
+    capture_stop_locked();
+    hal_camera_exit();      /* 关闭旧 fd：设备已拔除时旧句柄不可再用 */
+    pthread_mutex_unlock(&g_capture_mtx);
+
+    if (capture_init(dev_path, width, height) < 0) {
+        fprintf(stderr, "[CAPTURE] reconnect init failed\n");
+        return -1;
+    }
+    return capture_start_preview(g_preview_cb, g_preview_ctx);
 }
 
 void capture_exit(void) {

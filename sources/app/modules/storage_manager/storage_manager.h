@@ -67,6 +67,8 @@ int  storage_save_photo_with_path(const char *custom_path, const void *data, siz
 void storage_evict_oldest(storage_file_type_t type, uint64_t needed_bytes);
 int  storage_get_stats(storage_stats_t *stats);
 int  storage_check_and_evict(void);
+/* 热插拔二级确认：根目录存在且是目录才算存储可用（挂载点确认） */
+int  storage_is_available(void);
 void storage_exit(void);
 
 #endif /* _STORAGE_MANAGER_H */

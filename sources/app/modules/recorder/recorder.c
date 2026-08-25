@@ -338,8 +338,14 @@ static void *record_thread_func(void *arg) {
         riff_chunk_t chunk;
         chunk.id   = fourcc("00dc");
         chunk.size = frame_len;
-        write_all(g_fd, &chunk, sizeof(chunk));		//g_fd是recorder_start直接打开的“filename”,也就是SD卡路径
-        write_all(g_fd, frame_data, frame_len);
+        /* 修改：SD 卡被拔出时 write 会失败，检测到后退出线程避免空转，
+         * 文件收尾由 hotplug 拔出处理调 recorder_stop() 完成 */
+        if (write_all(g_fd, &chunk, sizeof(chunk)) < 0 ||
+            write_all(g_fd, frame_data, frame_len) < 0) {
+            fprintf(stderr, "[REC] SD 写入失败，录制线程退出\n");
+            free(frame_data);
+            break;
+        }
         if (frame_len & 1) {
             char pad = 0;
             write(g_fd, &pad, 1);

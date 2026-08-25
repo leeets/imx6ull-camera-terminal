@@ -15,9 +15,9 @@
 
 static int fd = -1;
 
-/* 初始化函数 */
+/* 初始化函数(修改：非阻塞读) */
 int hal_key_init(void) {
-	fd = open(KEY_DEVICE_PATH, O_RDWR);	
+	fd = open(KEY_DEVICE_PATH, O_RDWR | O_NONBLOCK);	
 	if(fd < 0)
 	{
 		perror("open file failed");
@@ -28,15 +28,13 @@ int hal_key_init(void) {
 
 /* 读函数--修复：加 10ms 超时，无事件立刻返回，让主循环保持空转 */
 int hal_key_read(hal_key_event_t *ev){
-	int raw;//临时
+	int raw;    //临时
     
     if (fd < 0) 
 		return -1;
-    struct pollfd pfd = { fd, POLLIN, 0 };
-    int r = poll(&pfd, 1, 10);      /* 10ms 超时，不阻塞主循环 */
-    if (r <= 0) return -1;          /* 无按键事件，直接返回 */
+    
 
-    // 阻塞读取
+    // 非阻塞读取，没有就立即返回
     if (read(fd, &raw, 4) != 4) {
         return -1;
     }

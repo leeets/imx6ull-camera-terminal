@@ -45,6 +45,7 @@
 #include "lv_port_indev.h"
 #include "ui_bridge.h"
 #include "mqtt_client.h"
+#include "hotplug_monitor.h"
 
 /* ==================== 全局状态 ==================== */
 static volatile int g_running = 1;
@@ -144,6 +145,7 @@ void on_key_event(key_event_type_t event) {
             recorder_stop();
             recording = 0;
         }
+        hotplug_monitor_exit();   /* 先停监控，避免退出过程中触发重连 */
         capture_exit();
         hal_fb_exit();
         key_manager_exit();
@@ -162,10 +164,9 @@ static int init_all(const char *cam_dev) {
         storage_init("/tmp", 32UL * 1024 * 1024);
     }
 
-    /* 2. 摄像头 */
+    /* 2. 摄像头（可能未插入：失败不退出，交给 hotplug_monitor 重连） */
     if (capture_init(cam_dev, 640, 480) < 0) {
-        fprintf(stderr, "[MAIN] 摄像头初始化失败\n");
-        return -1;
+        fprintf(stderr, "[MAIN] 摄像头初始化失败，等待热插拔重连\n");
     }
 
     /* 3. Framebuffer - LVGL 显示后端依赖 hal_fb */
@@ -215,6 +216,11 @@ static int init_all(const char *cam_dev) {
         fprintf(stderr, "[MAIN] MQTT 初始化失败，继续运行\n");
     }
 
+    /* 11. 热插拔监控（摄像头 / 触摸屏 / SD 卡） */
+    if (hotplug_monitor_init(cam_dev, 640, 480, "/dev/input/event1",
+                             "/mnt/sd", 512UL * 1024 * 1024) < 0) {
+        fprintf(stderr, "[MAIN] 热插拔监控启动失败，继续运行\n");
+    }
 
     return 0;
 }

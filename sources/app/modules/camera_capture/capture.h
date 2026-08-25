@@ -13,6 +13,8 @@ typedef void (*capture_preview_cb_t)(const hal_camera_frame_t *frame, void *user
 /* 接口 */
 int  capture_init(const char *dev_path, int width, int height);
 int  capture_start_preview(capture_preview_cb_t cb, void *user_data);
+/* 热插拔重连：停止旧采集并关闭旧 fd 后重新 init + 恢复预览（复用已注册回调） */
+int  capture_restart_preview(const char *dev_path, int width, int height);
 int  capture_take_photo(capture_photo_cb_t cb, void *user_data);
 void capture_stop(void);
 void capture_exit(void);

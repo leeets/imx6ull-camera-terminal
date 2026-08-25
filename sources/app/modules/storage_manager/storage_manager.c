@@ -301,6 +301,18 @@ void storage_exit(void) {
     /* 当前无动态资源需要释放 */
     printf("[STORAGE] exit\n");
 }
+
+/* 热插拔二级确认：块设备节点出现后内核挂载可能滞后，
+ * 以根目录 stat 是否可访问为准，避免“节点有了但还没挂载”的假阳性。 */
+int storage_is_available(void) {
+    struct stat st;
+
+    if (stat(g_root, &st) < 0)
+        return -1;
+
+    return S_ISDIR(st.st_mode) ? 0 : -1;
+}
+
 /* ==================== 照片列表接口（供 UI 相册调用） ==================== */
 
 /* scandir 过滤：只保留 .jpg 文件 */

@@ -108,7 +108,10 @@ static void refresh_status_labels(void)
     {
         storage_stats_t stats;
         char buf[48];
-        if (storage_get_stats(&stats) == 0) {
+        if (storage_is_available() != 0) {
+            /* 修改：SD 卡拔出时提示，而不是显示 0/512 MB 误导 */
+            snprintf(buf, sizeof(buf), "storage: no SD");
+        } else if (storage_get_stats(&stats) == 0) {
             uint64_t used_mb = stats.total_bytes / (1024 * 1024);
             uint64_t cap_mb  = stats.capacity_bytes / (1024 * 1024);
             snprintf(buf, sizeof(buf), "storage: %llu/%llu MB",
